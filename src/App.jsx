@@ -21,52 +21,128 @@ import TravelAdmin from './Traveladmin/TravelAdmin';
 // ---------------------------------------------------------
 import CareerPages from "./pages/carrerpages/Carrerpages";
 import Hostdetailpages from "./pages/HostDetails/Hostdetailpages"
+import ManageAdmins from "./pages/ManageAdmins"
+
+import { getAdminRole } from "./utils/auth";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ROLE-BASED ROUTE GUARD WRAPPER
+   Wraps a page element with role-based access control.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function RoleGuard({ roles, children }) {
+  const currentRole = getAdminRole();
+
+  if (!roles || roles.length === 0) return children;
+
+  if (!currentRole || !roles.includes(currentRole)) {
+    // Redirect unauthorized users to their default page
+    const fallback = currentRole === "recruiter" ? "/dashboard/career" : "/dashboard";
+    return <Navigate to={fallback} replace />;
+  }
+
+  return children;
+}
 
 function App() {
   const isAuth = localStorage.getItem("admin-auth")
+  const role = getAdminRole();
+
+  // Determine default landing page based on role
+  const defaultRoute = isAuth
+    ? (role === "recruiter" ? "/dashboard/career" : "/dashboard")
+    : "/login";
 
   return (
     <BrowserRouter>
       <Routes>
 
         {/* DEFAULT ROUTE */}
-        <Route path="/" element={isAuth ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to={defaultRoute} replace />} />
 
         {/* LOGIN ROUTE */}
-        <Route path="/login" element={isAuth ? <Navigate to="/dashboard" replace /> : <AdminLogin />} />
+        <Route path="/login" element={isAuth ? <Navigate to={defaultRoute} replace /> : <AdminLogin />} />
 
         {/* DASHBOARD + PROTECTED ROUTES */}
         <Route path="/dashboard" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
 
-          {/* Dashboard Home */}
-          <Route index element={<Dashboard />} />
+          {/* Dashboard Home — super_admin & admin only */}
+          <Route index element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Dashboard />
+            </RoleGuard>
+          } />
 
-          {/* Hosting Approval */}
-          <Route path="hosting-approval" element={<HostingApproval />} />
+          {/* Hosting Approval — super_admin & admin */}
+          <Route path="hosting-approval" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <HostingApproval />
+            </RoleGuard>
+          } />
 
-          {/* Accommodation Routes */}
+          {/* Accommodation Routes — super_admin & admin */}
           <Route path="accommodation">
-            <Route index element={<AccommodationCategories />} />
-            <Route path=":categoryName" element={<PropertyDetail />} />
-            <Route path=":categoryName/:propertyId" element={<PropertyList />} />
+            <Route index element={
+              <RoleGuard roles={["super_admin", "admin"]}>
+                <AccommodationCategories />
+              </RoleGuard>
+            } />
+            <Route path=":categoryName" element={
+              <RoleGuard roles={["super_admin", "admin"]}>
+                <PropertyDetail />
+              </RoleGuard>
+            } />
+            <Route path=":categoryName/:propertyId" element={
+              <RoleGuard roles={["super_admin", "admin"]}>
+                <PropertyList />
+              </RoleGuard>
+            } />
           </Route>
 
-          {/* Events */}
-          <Route path="events" element={<Events />} />
+          {/* Events — super_admin & admin */}
+          <Route path="events" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Events />
+            </RoleGuard>
+          } />
 
-          {/* Career */}
+          {/* Career — all roles can access */}
           <Route path="career" element={<CareerPages />} />
 
-          {/* Buy and Sell */}
-          <Route path="buy-and-sell" element={<Buysellpages />} />
-          <Route path="community" element={<Community />} />
+          {/* Buy and Sell — super_admin & admin */}
+          <Route path="buy-and-sell" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Buysellpages />
+            </RoleGuard>
+          } />
 
-          {/* TRAVEL ADMIN ROUTE */}
-          {/* Note: 'travell' matches your sidebar link. If you want to fix the typo, change path to "travel" */}
-          <Route path="travell" element={<TravelAdmin />} />
-          {/* ------------------------------------------------- */}
+          {/* Community — super_admin & admin */}
+          <Route path="community" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Community />
+            </RoleGuard>
+          } />
 
-          <Route path="host-details" element={<Hostdetailpages />} />
+          {/* Travel — super_admin & admin */}
+          <Route path="travell" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <TravelAdmin />
+            </RoleGuard>
+          } />
+
+          {/* Host Details — super_admin & admin */}
+          <Route path="host-details" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Hostdetailpages />
+            </RoleGuard>
+          } />
+
+          {/* Manage Admins — super_admin only */}
+          <Route path="manage-admins" element={
+            <RoleGuard roles={["super_admin"]}>
+              <ManageAdmins />
+            </RoleGuard>
+          } />
 
         </Route>
 

@@ -8,25 +8,40 @@ import {
   LogOut,
   ShoppingBag,
   ChevronRight,
-  Users // <--- Added this import
+  Users,
+  Shield
 } from 'lucide-react';
+import { getAdminRole, clearAdminAuth } from '../utils/auth';
 
+/* ═══════════════════════════════════════════════════════════════════════
+   ROLE-BASED MENU CONFIGURATION
+
+   Each item has a `roles` array defining who can see it.
+   - super_admin: sees everything
+   - admin: sees all management pages except "Manage Admins"
+   - recruiter: sees only Career
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const ALL_MENU_ITEMS = [
+  { name: 'Dashboard', path: '/dashboard', icon: Home, end: true, roles: ['super_admin', 'admin'] },
+  { name: 'Hosting Approval', path: '/dashboard/hosting-approval', icon: CheckCircle, roles: ['super_admin', 'admin'] },
+  { name: 'Accommodation', path: '/dashboard/accommodation', icon: Building, roles: ['super_admin', 'admin'] },
+  { name: 'Events', path: '/dashboard/events', icon: Calendar, roles: ['super_admin', 'admin'] },
+  { name: 'Career', path: '/dashboard/career', icon: Briefcase, roles: ['super_admin', 'admin', 'recruiter'] },
+  { name: 'Community', path: '/dashboard/community', icon: Users, roles: ['super_admin', 'admin'] },
+  { name: 'Buy and Sell', path: '/dashboard/buy-and-sell', icon: ShoppingBag, roles: ['super_admin', 'admin'] },
+  { name: 'Travel', path: '/dashboard/travell', icon: ShoppingBag, roles: ['super_admin', 'admin'] },
+  { name: 'Host Details', path: '/dashboard/host-details', icon: ShoppingBag, roles: ['super_admin', 'admin'] },
+  { name: 'Manage Admins', path: '/dashboard/manage-admins', icon: Shield, roles: ['super_admin'] },
+];
 
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const currentRole = getAdminRole() || 'admin';
 
-  const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: Home, end: true },
-    { name: 'Hosting Approval', path: '/dashboard/hosting-approval', icon: CheckCircle },
-    { name: 'Accommodation', path: '/dashboard/accommodation', icon: Building },
-    { name: 'Events', path: '/dashboard/events', icon: Calendar },
-    { name: 'Career', path: '/dashboard/career', icon: Briefcase },
-    { name: 'Community', path: '/dashboard/community', icon: Users }, 
-    { name: 'Buy and Sell', path: '/dashboard/buy-and-sell', icon: ShoppingBag },
-    { name: 'Travel', path: '/dashboard/travell', icon: ShoppingBag }, 
-    { name: 'Host Details', path: '/dashboard/host-details', icon: ShoppingBag }, 
-  ];
+  // Filter menu items by current admin's role
+  const menuItems = ALL_MENU_ITEMS.filter(item => item.roles.includes(currentRole));
 
   // Premium Link Styling using your colors
   const linkClasses = ({ isActive }) =>
@@ -36,10 +51,9 @@ const Sidebar = () => {
     }`;
 
   const handleLogout = () => {
-    // Optional: Add a confirmation modal here
     const confirmLogout = window.confirm("Are you sure you want to logout?");
-    if (confirmLogout) { // Fixed syntax here
-      localStorage.removeItem("admin-auth");
+    if (confirmLogout) {
+      clearAdminAuth();
       navigate("/login");
     }
   };
@@ -53,12 +67,24 @@ const Sidebar = () => {
           <img
             src='/nextkinlife-logo.jpeg'
             alt="NextKinLife Logo"
-            className="h-12 w-auto object-contain drop-shadow-md" 
+            className="h-12 w-auto object-contain drop-shadow-md"
           />
         </div>
 
+        {/* ROLE BADGE */}
+        <div className="px-4 pt-4 pb-1">
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${currentRole === 'super_admin' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+              currentRole === 'recruiter' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+            }`}>
+            {currentRole === 'super_admin' ? '⚡ Super Admin' :
+              currentRole === 'recruiter' ? '📋 Recruiter' :
+                '🛡️ Admin'}
+          </span>
+        </div>
+
         {/* MENU ITEMS */}
-        <nav className="p-4">
+        <nav className="p-4 pt-2">
           {menuItems.map((item) => (
             <NavLink
               key={item.name}
@@ -71,13 +97,13 @@ const Sidebar = () => {
                 {item.name}
               </div>
               {/* Subtle Arrow on hover */}
-              <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${linkClasses({isActive: false}).includes('bg-gradient') ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+              <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${linkClasses({ isActive: false }).includes('bg-gradient') ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
             </NavLink>
           ))}
         </nav>
       </div>
 
-    
+
     </aside>
   );
 };

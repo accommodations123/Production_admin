@@ -27,7 +27,18 @@ export default function AdminLogin() {
 
             if (data.token) {
                 localStorage.setItem("admin-auth", data.token);
-                navigate("/dashboard");
+
+                // Store admin role for sidebar/route filtering
+                const adminData = data.data || data.admin || {};
+                const role = adminData.role || "admin";
+                localStorage.setItem("admin-role", role);
+
+                // Recruiters go directly to Career page
+                if (role === "recruiter") {
+                    navigate("/dashboard/career");
+                } else {
+                    navigate("/dashboard");
+                }
             } else {
                 alert(data.message || "Invalid admin credentials!");
             }
