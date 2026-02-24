@@ -23,7 +23,7 @@ import CareerPages from "./pages/carrerpages/Carrerpages";
 import Hostdetailpages from "./pages/HostDetails/Hostdetailpages"
 
 function App() {
-  const isAuth = localStorage.getItem("admin-auth");
+  const isAuth = localStorage.getItem("admin-auth")
 
   return (
     <BrowserRouter>
