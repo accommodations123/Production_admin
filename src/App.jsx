@@ -22,6 +22,8 @@ import TravelAdmin from './Traveladmin/TravelAdmin';
 import CareerPages from "./pages/carrerpages/Carrerpages";
 import Hostdetailpages from "./pages/HostDetails/Hostdetailpages"
 import ManageAdmins from "./pages/ManageAdmins"
+import Settings from "./pages/Settings"
+import ActivityLog from "./pages/ActivityLog"
 
 import { getAdminRole } from "./utils/auth";
 
@@ -141,6 +143,20 @@ function App() {
           <Route path="manage-admins" element={
             <RoleGuard roles={["super_admin"]}>
               <ManageAdmins />
+            </RoleGuard>
+          } />
+
+          {/* Settings — super_admin & admin */}
+          <Route path="settings" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <Settings />
+            </RoleGuard>
+          } />
+
+          {/* Activity Log — super_admin & admin */}
+          <Route path="activity-log" element={
+            <RoleGuard roles={["super_admin", "admin"]}>
+              <ActivityLog />
             </RoleGuard>
           } />
 

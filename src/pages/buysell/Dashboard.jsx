@@ -189,7 +189,7 @@ const Dashboard = () => {
     const StatCard = ({ title, value, icon }) => (
         <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                <div className="p-3 rounded-lg bg-slate-900">
                     <div className="w-6 h-6 text-white">{icon}</div>
                 </div>
             </div>

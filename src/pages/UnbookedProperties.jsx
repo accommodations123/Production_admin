@@ -491,7 +491,7 @@ const UnbookedProperties = ({ onBack, type }) => {
                             <span>Back to Categories</span>
                         </span>
                     </button>
-                    <h1 className="text-3xl sm:text-4xl font-bold text-[#00162d] mb-2">Unbooked Properties</h1>
+                    <h1 className="text-3xl sm:text-4xl font-bold text-[#0f172a] mb-2">Unbooked Properties</h1>
                     <p className="text-gray-600 max-w-2xl text-sm sm:text-base">Browse and book available properties from our exclusive collection.</p>
                     {type && <p className="text-sm text-gray-500 mt-3">Showing: <span className="font-semibold text-[#cb2926]">{type.name}</span> category</p>}
                 </div>
@@ -509,7 +509,7 @@ const UnbookedProperties = ({ onBack, type }) => {
                         />
                     </div>
                     <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-[#00162d] text-white rounded-lg hover:bg-opacity-90 transition-colors">
+                        <button className="flex items-center gap-2 px-4 py-2 bg-[#0f172a] text-white rounded-lg hover:bg-opacity-90 transition-colors">
                             <Filter size={18} />
                             <span>Filter</span>
                         </button>
@@ -569,17 +569,17 @@ const UnbookedProperties = ({ onBack, type }) => {
                                         </div>
                                         <div className="p-4">
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className="px-2 py-1 bg-[#00162d]/10 text-[#00162d] rounded-full text-xs font-medium">{property.propertyType}</span>
+                                                <span className="px-2 py-1 bg-[#0f172a]/10 text-[#0f172a] rounded-full text-xs font-medium">{property.propertyType}</span>
                                                 <span className="text-[#cb2926] font-bold">{property.price}/month</span>
                                             </div>
-                                            <h3 className="text-lg font-bold text-[#00162d] mb-1 truncate">{property.name}</h3>
+                                            <h3 className="text-lg font-bold text-[#0f172a] mb-1 truncate">{property.name}</h3>
                                             <div className="flex items-center gap-1 text-gray-600 text-sm mb-3">
                                                 <MapPin size={14} />
                                                 <span className="truncate">{property.city}, {property.country}</span>
                                             </div>
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-gray-500">Available from {property.date}</span>
-                                                <button className="text-[#00162d] font-semibold text-sm hover:text-[#cb2926] transition-colors">View Details</button>
+                                                <button className="text-[#0f172a] font-semibold text-sm hover:text-[#cb2926] transition-colors">View Details</button>
                                             </div>
                                         </div>
                                         <div className="h-1 bg-[#cb2926] transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out"></div>
@@ -599,7 +599,7 @@ const UnbookedProperties = ({ onBack, type }) => {
                                                 />
                                             </div>
                                             <div className="min-w-0 flex-1">
-                                                <h3 className="text-lg font-bold text-[#00162d] truncate">{property.name}</h3>
+                                                <h3 className="text-lg font-bold text-[#0f172a] truncate">{property.name}</h3>
                                                 <p className="text-gray-600 text-sm">{property.city}, {property.country} • {property.propertyType}</p>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-[#cb2926] font-bold">{property.price}/month</span>
@@ -614,7 +614,7 @@ const UnbookedProperties = ({ onBack, type }) => {
                                             </div>
                                             <button
                                                 onClick={() => handlePropertyClick(property)}
-                                                className="text-[#00162d] font-semibold text-sm hover:text-[#cb2926] transition-colors"
+                                                className="text-[#0f172a] font-semibold text-sm hover:text-[#cb2926] transition-colors"
                                             >
                                                 View Details
                                             </button>
@@ -633,7 +633,7 @@ const UnbookedProperties = ({ onBack, type }) => {
                         <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria</p>
                         <button
                             onClick={() => setSearchTerm('')}
-                            className="px-4 py-2 bg-[#00162d] text-white rounded-lg hover:bg-opacity-90 transition-colors"
+                            className="px-4 py-2 bg-[#0f172a] text-white rounded-lg hover:bg-opacity-90 transition-colors"
                         >
                             Clear Search
                         </button>

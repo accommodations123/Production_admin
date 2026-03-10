@@ -111,38 +111,38 @@ const ManageCategories = () => {
 
                 {/* Stats Overview */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-6 text-white" style={{ background: 'linear-gradient(to right, #00162d, #002451)' }}>
+                    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-blue-100 text-sm font-medium">Total Categories</p>
-                                <p className="text-3xl font-bold mt-2">{categories.length}</p>
+                                <p className="text-slate-400 text-sm font-medium">Total Categories</p>
+                                <p className="text-3xl font-bold mt-2 text-slate-900">{categories.length}</p>
                             </div>
-                            <div className="bg-white/20 p-3 rounded-lg">
-                                <Package className="w-8 h-8" />
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                                <Package className="w-8 h-8 text-blue-600" />
                             </div>
                         </div>
                     </div>
-                    <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-6 text-white" style={{ background: 'linear-gradient(to right, #00162d, #002451)' }}>
+                    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-blue-100 text-sm font-medium">Total Listings</p>
-                                <p className="text-3xl font-bold mt-2">{totalListings}</p>
+                                <p className="text-slate-400 text-sm font-medium">Total Listings</p>
+                                <p className="text-3xl font-bold mt-2 text-slate-900">{totalListings}</p>
                             </div>
-                            <div className="bg-white/20 p-3 rounded-lg">
-                                <TrendingUp className="w-8 h-8" />
+                            <div className="bg-emerald-50 p-3 rounded-lg">
+                                <TrendingUp className="w-8 h-8 text-emerald-600" />
                             </div>
                         </div>
                     </div>
-                    <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-6 text-white" style={{ background: 'linear-gradient(to right, #00162d, #002451)' }}>
+                    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-blue-100 text-sm font-medium">Avg per Category</p>
-                                <p className="text-3xl font-bold mt-2">
+                                <p className="text-slate-400 text-sm font-medium">Avg per Category</p>
+                                <p className="text-3xl font-bold mt-2 text-slate-900">
                                     {categories.length ? Math.round(totalListings / categories.length) : 0}
                                 </p>
                             </div>
-                            <div className="bg-white/20 p-3 rounded-lg">
-                                <Package className="w-8 h-8" />
+                            <div className="bg-violet-50 p-3 rounded-lg">
+                                <Package className="w-8 h-8 text-violet-600" />
                             </div>
                         </div>
                     </div>
@@ -151,10 +151,10 @@ const ManageCategories = () => {
                 {/* Categories Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {categories.map((cat) => (
-                        <div key={cat.id} className="bg-white rounded-xl shadow-sm border border-blue-200 overflow-hidden hover:shadow-lg transition-all duration-300">
-                            <div className="p-6" style={{ backgroundColor: '#f0f5ff' }}>
+                        <div key={cat.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg transition-all duration-300">
+                            <div className="p-6 bg-slate-50">
                                 <div className="flex items-center justify-between mb-4">
-                                    <div className="p-3 bg-white rounded-lg" style={{ color: '#00162d' }}>
+                                    <div className="p-3 bg-white rounded-lg text-slate-900">
                                         <Package className="w-6 h-6" />
                                     </div>
                                     <span className="text-2xl font-bold text-gray-900">{cat.count}</span>
@@ -169,7 +169,7 @@ const ManageCategories = () => {
                                     {cat.subcategories.slice(0, 3).map((s) => (
                                         <div key={s.id} className="flex items-center justify-between">
                                             <span className="text-sm text-gray-700">{s.name}</span>
-                                            <span className="px-2 py-1 text-xs font-medium rounded-full" style={{ backgroundColor: '#f0f5ff', color: '#00162d' }}>
+                                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-700">
                                                 {s.count}
                                             </span>
                                         </div>

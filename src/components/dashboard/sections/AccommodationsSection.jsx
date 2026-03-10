@@ -4,74 +4,58 @@ import LoadingCard from "../LoadingCard";
 import StatCard from "../StatCard";
 import ErrorCard from "../ErrorCard";
 
-const AccommodationsSection = ({
-    loading,
-    getPropertyStats,
-    getPropertyStatusData,
-    getHostStatusData
-}) => {
+const ChartCard = ({ title, children }) => (
+    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md hover:shadow-slate-100/50 transition-shadow">
+        <h3 className="text-sm font-semibold text-slate-700 mb-4">{title}</h3>
+        {children}
+    </div>
+);
+
+const ChartLoader = () => (
+    <div className="h-64 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-[#cb2926] rounded-full animate-spin" />
+    </div>
+);
+
+const EmptyState = ({ message = "No data available" }) => (
+    <div className="h-64 flex items-center justify-center">
+        <p className="text-sm text-slate-400">{message}</p>
+    </div>
+);
+
+const AccommodationsSection = ({ loading, getPropertyStats, getPropertyStatusData, getHostStatusData }) => {
     return (
-        <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="mb-6">
-                <h2 className="text-2xl font-bold text-[#00162d] mb-2">Accommodations</h2>
-                <p className="text-gray-600">Manage all listed accommodations.</p>
+        <div className="space-y-6 animate-fade-in">
+            {/* Header */}
+            <div>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">Accommodations</h2>
+                <p className="text-sm text-slate-400 mt-0.5">Manage all listed accommodations.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {loading ? (
                     Array(4).fill(0).map((_, i) => <LoadingCard key={i} />)
                 ) : getPropertyStats().length > 0 ? (
-                    getPropertyStats().map((stat, i) => <StatCard key={i} stat={stat} />)
+                    getPropertyStats().map((stat, i) => <StatCard key={i} stat={stat} index={i} />)
                 ) : (
-                    <div className="col-span-4">
-                        <ErrorCard message="No accommodation data available" />
-                    </div>
+                    <div className="col-span-4"><ErrorCard message="No accommodation data available" /></div>
                 )}
             </div>
 
-            {/* Property Analytics Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800">Property Status Distribution</h3>
-                    </div>
-                    {loading ? (
-                        <div className="h-64 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00162d]"></div>
-                        </div>
-                    ) : getPropertyStatusData().labels.length > 0 ? (
-                        <PieChart
-                            data={getPropertyStatusData()}
-                            title="Property Status"
-                            height={300}
-                        />
-                    ) : (
-                        <div className="h-64 flex items-center justify-center text-gray-500">
-                            No data available
-                        </div>
-                    )}
-                </div>
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <ChartCard title="Property Status Distribution">
+                    {loading ? <ChartLoader /> : getPropertyStatusData().labels.length > 0 ? (
+                        <PieChart data={getPropertyStatusData()} title="Property Status" height={300} />
+                    ) : <EmptyState />}
+                </ChartCard>
 
-                <div className="bg-white rounded-xl shadow-sm p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800">Host Status Distribution</h3>
-                    </div>
-                    {loading ? (
-                        <div className="h-64 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00162d]"></div>
-                        </div>
-                    ) : getHostStatusData().labels.length > 0 ? (
-                        <PieChart
-                            data={getHostStatusData()}
-                            title="Host Status"
-                            height={300}
-                        />
-                    ) : (
-                        <div className="h-64 flex items-center justify-center text-gray-500">
-                            No data available
-                        </div>
-                    )}
-                </div>
+                <ChartCard title="Host Status Distribution">
+                    {loading ? <ChartLoader /> : getHostStatusData().labels.length > 0 ? (
+                        <PieChart data={getHostStatusData()} title="Host Status" height={300} />
+                    ) : <EmptyState />}
+                </ChartCard>
             </div>
         </div>
     );

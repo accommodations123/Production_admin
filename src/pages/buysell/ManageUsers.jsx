@@ -157,7 +157,7 @@ const ManageUsers = () => {
                                     <span>12% from last month</span>
                                 </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <Users className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -174,7 +174,7 @@ const ManageUsers = () => {
                                     <span>8% from last month</span>
                                 </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <UserCheck className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -191,7 +191,7 @@ const ManageUsers = () => {
                                     <span>15% from last month</span>
                                 </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <Package className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -206,7 +206,7 @@ const ManageUsers = () => {
                                     <span>2% from last month</span>
                                 </div>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <Star className="w-6 h-6 text-white" />
                             </div>
                         </div>

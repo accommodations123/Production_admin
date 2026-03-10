@@ -11,6 +11,9 @@ import {
   Download,
   FileSpreadsheet,
   X,
+  ArrowRight,
+  TrendingUp,
+  Clock,
 } from "lucide-react"
 
 // --- NEW IMPORTS FOR EXPORT ---
@@ -33,6 +36,37 @@ import CommunitiesSection from "../components/dashboard/sections/CommunitiesSect
 import CareersSection from "../components/dashboard/sections/CareersSection";
 import UsersSection from "../components/dashboard/sections/UsersSection";
 
+/* ═══════════════════════════════════════════════════════════════
+   TAB CONFIGURATION
+   ═══════════════════════════════════════════════════════════════ */
+const TABS = [
+  { key: 'overview', label: 'Overview', icon: TrendingUp },
+  { key: 'accommodations', label: 'Accommodation', icon: Building },
+  { key: 'events', label: 'Events', icon: Calendar },
+  { key: 'buysell', label: 'Buy / Sell', icon: null },
+  { key: 'travel', label: 'Travel', icon: null },
+  { key: 'communities', label: 'Communities', icon: null },
+  { key: 'careers', label: 'Careers', icon: Briefcase },
+  { key: 'users', label: 'Users', icon: UserPlus },
+];
+
+const RANGES = [
+  { key: '7d', label: '7 Days' },
+  { key: '30d', label: '30 Days' },
+  { key: '90d', label: '90 Days' },
+];
+
+const QUICK_ACTIONS = [
+  { icon: Building, label: 'Add Property', color: 'text-blue-600', bg: 'bg-blue-50' },
+  { icon: Calendar, label: 'Create Event', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  { icon: Briefcase, label: 'Post Job', color: 'text-violet-600', bg: 'bg-violet-50' },
+  { icon: UserPlus, label: 'Add User', color: 'text-amber-600', bg: 'bg-amber-50' },
+  { icon: FileText, label: 'Reports', color: 'text-rose-600', bg: 'bg-rose-50' },
+  { icon: Settings, label: 'Settings', color: 'text-slate-600', bg: 'bg-slate-100' },
+];
+
+/* ═══════════════════════════════════════════════════════════════ */
+
 const Dashboard = () => {
   const [timeGreeting, setTimeGreeting] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -44,7 +78,7 @@ const Dashboard = () => {
   // State for Export Menu
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // --- API Calls (Existing Logic) ---
+  // --- API Calls (Existing Logic — UNCHANGED) ---
   const {
     data: analyticsSummary,
     loading: summaryLoading,
@@ -266,8 +300,6 @@ const Dashboard = () => {
   // --- EXPORT TO EXCEL LOGIC ---
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
-
-    // 1. Summary Sheet
     const summaryData = [
       ...Utils.getHostStats(analyticsSummary).map(s => ({ Section: "Host", ...s })),
       ...Utils.getPropertyStats(analyticsSummary).map(s => ({ Section: "Property", ...s })),
@@ -280,8 +312,6 @@ const Dashboard = () => {
       const wsSummary = XLSX.utils.json_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, "Overview Summary");
     }
-
-    // 2. Timeseries Sheet
     if (analyticsTimeseries?.labels) {
       const timeseriesTable = analyticsTimeseries.labels.map((label, index) => {
         let row = { Date: label };
@@ -293,25 +323,18 @@ const Dashboard = () => {
       const wsTimeseries = XLSX.utils.json_to_sheet(timeseriesTable);
       XLSX.utils.book_append_sheet(wb, wsTimeseries, "Time Series");
     }
-
-    // 3. Location Sheet
     if (analyticsByLocation?.length > 0) {
       const wsLocation = XLSX.utils.json_to_sheet(analyticsByLocation);
       XLSX.utils.book_append_sheet(wb, wsLocation, "By Location");
     }
-
-    // 4. Buy/Sell Data
     if (buySellOverview?.length > 0) {
       const wsBuySell = XLSX.utils.json_to_sheet(buySellOverview);
       XLSX.utils.book_append_sheet(wb, wsBuySell, "Buy/Sell Details");
     }
-
-    // 5. Travel Data
     if (travelOverview?.length > 0) {
       const wsTravel = XLSX.utils.json_to_sheet(travelOverview);
       XLSX.utils.book_append_sheet(wb, wsTravel, "Travel Details");
     }
-
     XLSX.writeFile(wb, `Dashboard_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
     setShowExportMenu(false);
   };
@@ -319,21 +342,16 @@ const Dashboard = () => {
   // --- EXPORT TO PDF LOGIC ---
   const handleExportPdf = () => {
     const doc = new jsPDF();
-
-    // Title
     doc.setFontSize(18);
     doc.text("Platform Analytics Report", 14, 22);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
-
-    // 1. Summary Table
     const summaryData = [
       ...Utils.getHostStats(analyticsSummary).map(s => ({ ...s })),
       ...Utils.getPropertyStats(analyticsSummary).map(s => ({ ...s })),
       ...Utils.getEventStats(eventAnalyticsSummary).map(s => ({ ...s })),
     ];
-
     if (summaryData.length > 0) {
       doc.autoTable({
         head: [['Label', 'Value', 'Trend']],
@@ -341,8 +359,6 @@ const Dashboard = () => {
         startY: 40,
       });
     }
-
-    // 2. Timeseries Table (Flattened)
     if (analyticsTimeseries?.labels) {
       const flatData = analyticsTimeseries.labels.map((label, index) => {
         let row = { Date: label };
@@ -351,7 +367,6 @@ const Dashboard = () => {
         });
         return row;
       });
-
       const headers = Object.keys(flatData[0] || {});
       doc.autoTable({
         head: [headers],
@@ -359,7 +374,6 @@ const Dashboard = () => {
         startY: doc.lastAutoTable.finalY + 20,
       });
     }
-
     doc.save(`Dashboard_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
     setShowExportMenu(false);
   };
@@ -380,248 +394,267 @@ const Dashboard = () => {
     travelOverviewLoading || travelTrendLoading || travelCountryLoading || travelMatchConversionLoading ||
     communityOverviewLoading || communityTrendLoading || communityCountryLoading || communityRatioLoading || communityMembershipLoading;
 
+  /* ═══════════════════════════════════════════════════════════
+     RENDER
+     ═══════════════════════════════════════════════════════════ */
+
   return (
-    <div className="min-h-screen bg-gray-50 relative">
-      {/* Main Content */}
-      <main className="p-6">
+    <div className="min-h-screen relative">
+      <main className="p-6 lg:p-8">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Welcome Banner */}
-          <div className="bg-gradient-to-r from-[#00162d] to-[#002a4d] rounded-xl p-6 text-white shadow-lg">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-              <div className="mb-4 md:mb-0">
-                <h1 className="text-3xl font-bold mb-2">{timeGreeting}, Admin!</h1>
-                <p className="text-blue-100">Here's your platform overview and key insights.</p>
-                <p className="text-sm text-blue-200 mt-2">
-                  {currentTime.toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric'
-                  })} at {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+
+          {/* ── Welcome Card ──────────────────────────────────── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <h1 className="text-2xl font-bold text-slate-900">
+                    {timeGreeting}, Admin
+                  </h1>
+                  <span className="text-2xl">👋</span>
+                </div>
+                <p className="text-slate-500 text-sm">
+                  Here's what's happening across your platform today.
                 </p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {currentTime.toLocaleDateString('en-GB', {
+                      day: 'numeric', month: 'long', year: 'numeric'
+                    })} at {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex space-x-3 relative">
-                <button
-                  onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 text-sm font-medium hover:bg-white/30 transition-colors flex items-center text-white relative"
-                >
-                  <Download size={16} className="mr-2" />
-                  Export Report
-                </button>
+              <div className="flex items-center gap-2 relative">
+                {/* Export Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                  >
+                    <Download size={15} />
+                    Export
+                  </button>
 
-                {/* EXPORT DROPDOWN MENU */}
-                {showExportMenu && (
-                  <div className="absolute top-full mt-2 right-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden">
-                    <button
-                      onClick={handleExportExcel}
-                      className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <FileSpreadsheet size={16} className="mr-3 text-green-600" />
-                      Download Excel
-                    </button>
-                    <button
-                      onClick={handleExportPdf}
-                      className="w-full flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
-                    >
-                      <FileText size={16} className="mr-3 text-red-600" />
-                      Download PDF
-                    </button>
-                  </div>
-                )}
+                  {showExportMenu && (
+                    <div className="absolute top-full mt-2 right-0 w-48 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-slide-up">
+                      <button
+                        onClick={handleExportExcel}
+                        className="w-full flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <FileSpreadsheet size={15} className="mr-3 text-emerald-600" />
+                        Excel (.xlsx)
+                      </button>
+                      <button
+                        onClick={handleExportPdf}
+                        className="w-full flex items-center px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+                      >
+                        <FileText size={15} className="mr-3 text-rose-500" />
+                        PDF Report
+                      </button>
+                    </div>
+                  )}
+                </div>
 
+                {/* Refresh */}
                 <button
                   onClick={handleRefresh}
-                  className={`bg-[#cb2926] rounded-lg px-4 py-2 text-sm font-medium hover:bg-opacity-90 transition-colors flex items-center ${refreshing ? 'opacity-70' : ''}`}
+                  disabled={refreshing}
+                  className={`inline-flex items-center gap-2 px-4 py-2 bg-[#cb2926] text-white rounded-xl text-sm font-medium 
+                    hover:bg-[#a71f1c] transition-all shadow-sm shadow-red-200 disabled:opacity-60 ${refreshing ? 'cursor-wait' : ''}`}
                 >
-                  <RefreshCw size={16} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                  <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
                   Refresh
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Error Message */}
+          {/* ── Error Banner ──────────────────────────────────── */}
           {hasError && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-200 p-4 rounded-lg text-red-600">
-              <AlertCircle size={18} />
-              {summaryError}
+            <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-4 rounded-xl text-red-600 text-sm animate-fade-in">
+              <AlertCircle size={18} className="shrink-0" />
+              <span className="flex-1">{summaryError}</span>
+              <button onClick={() => { }} className="p-1 hover:bg-red-100 rounded-lg transition-colors">
+                <X size={14} />
+              </button>
             </div>
           )}
 
-          {/* Tabs */}
-          <div className="bg-white rounded-xl shadow-sm p-2">
-            <div className="flex space-x-1">
-              {['overview', 'accommodations', 'events', 'buysell', 'travel', 'communities', 'careers', 'users'].map((section) => (
+          {/* ── Tab Bar + Range Selector ──────────────────────── */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            {/* Tabs */}
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-1.5 flex gap-1 overflow-x-auto no-scrollbar">
+              {TABS.map((tab) => (
                 <button
-                  key={section}
-                  onClick={() => setActiveSection(section)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${activeSection === section ? 'bg-[#00162d] text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  key={tab.key}
+                  onClick={() => setActiveSection(tab.key)}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-200
+                    ${activeSection === tab.key
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }`}
                 >
-                  {section.charAt(0).toUpperCase() + section.slice(1).replace('buysell', 'Buy / Sell')}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Range Selector */}
+            <div className="flex gap-1 bg-white border border-slate-200/80 rounded-xl p-1">
+              {RANGES.map((range) => (
+                <button
+                  key={range.key}
+                  onClick={() => setSelectedRange(range.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200
+                    ${selectedRange === range.key
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    }`}
+                >
+                  {range.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Controls */}
-          <div className="flex justify-between items-center">
-            <div className="flex space-x-2">
-              {['day', 'week', 'month', 'year'].map((range) => (
+          {/* ── CONTENT SECTIONS (unchanged props) ────────────── */}
+          <div className="animate-fade-in">
+            {activeSection === 'overview' && (
+              <OverviewSection
+                loading={summaryLoading}
+                error={summaryError}
+                getHostStats={() => Utils.getHostStats(analyticsSummary)}
+                getPropertyStats={() => Utils.getPropertyStats(analyticsSummary)}
+                getEventStats={() => Utils.getEventStats(eventAnalyticsSummary)}
+                getBuySellOverviewStats={() => Utils.getBuySellOverviewStats(buySellOverview)}
+                getTravelStats={() => Utils.getTravelStats(travelOverview)}
+                getCommunityStats={() => Utils.getCommunityStats(communityOverview)}
+                analyticsTimeseries={analyticsTimeseries}
+                timeseriesLoading={timeseriesLoading}
+                selectedEvent={selectedEvent}
+                setSelectedEvent={setSelectedEvent}
+                analyticsByLocation={analyticsByLocation}
+                locationLoading={locationLoading}
+                getLocationDataForChart={() => Utils.getLocationDataForChart(analyticsByLocation)}
+              />
+            )}
+
+            {activeSection === 'events' && (
+              <EventsSection
+                loading={eventSummaryLoading}
+                getEventStats={() => Utils.getEventStats(eventAnalyticsSummary)}
+                eventEngagementTimeseries={eventEngagementTimeseries}
+                eventEngagementLoading={eventEngagementLoading}
+                eventAnalyticsByLocation={eventAnalyticsByLocation}
+                eventLocationLoading={eventLocationLoading}
+                getEventLocationDataForChart={() => Utils.getEventLocationDataForChart(eventAnalyticsByLocation)}
+              />
+            )}
+
+            {activeSection === 'accommodations' && (
+              <AccommodationsSection
+                loading={summaryLoading}
+                getPropertyStats={() => Utils.getPropertyStats(analyticsSummary)}
+                getPropertyStatusData={() => Utils.getPropertyStatusData(analyticsSummary)}
+                getHostStatusData={() => Utils.getHostStatusData(analyticsSummary)}
+              />
+            )}
+
+            {activeSection === 'buysell' && (
+              <BuySellSection
+                loading={buySellOverviewLoading}
+                getBuySellOverviewStats={() => Utils.getBuySellOverviewStats(buySellOverview)}
+                buySellTrendLoading={buySellTrendLoading}
+                getBuySellTrendData={() => Utils.getBuySellTrendData(buySellTrend, selectedRange)}
+                buySellCountryLoading={buySellCountryLoading}
+                getBuySellCountryData={() => Utils.getBuySellCountryData(buySellCountry)}
+                buySellRatioLoading={buySellRatioLoading}
+                getBuySellRatioData={() => Utils.getBuySellRatioData(buySellRatio)}
+              />
+            )}
+
+            {activeSection === 'travel' && (
+              <TravelSection
+                loading={travelOverviewLoading}
+                getTravelStats={() => Utils.getTravelStats(travelOverview)}
+                travelTrendLoading={travelTrendLoading}
+                getTravelTrendData={() => Utils.getTravelTrendData(travelTrend)}
+                travelCountryLoading={travelCountryLoading}
+                getTravelCountryData={() => Utils.getTravelCountryData(travelCountry)}
+                travelMatchConversionLoading={travelMatchConversionLoading}
+                getTravelMatchConversionData={() => Utils.getTravelMatchConversionData(travelMatchConversion)}
+              />
+            )}
+
+            {activeSection === 'communities' && (
+              <CommunitiesSection
+                loading={communityOverviewLoading}
+                getCommunityStats={() => Utils.getCommunityStats(communityOverview)}
+                communityTrendLoading={communityTrendLoading}
+                getCommunityTrendData={() => Utils.getCommunityTrendData(communityTrend)}
+                communityCountryLoading={communityCountryLoading}
+                getCommunityCountryData={() => Utils.getCommunityCountryData(communityCountry)}
+                communityRatioLoading={communityRatioLoading}
+                getCommunityRatioData={() => Utils.getCommunityRatioData(communityRatio)}
+              />
+            )}
+
+            {activeSection === 'careers' && (
+              <CareersSection
+                loading={careerJobsLoading}
+                getCareerJobsStats={() => Utils.getCareerJobsStats(careerJobsOverview)}
+                funnelLoading={careerFunnelLoading}
+                getCareerFunnelData={() => Utils.getCareerFunnelData(careerApplicationsFunnel)}
+                trendLoading={careerTrendLoading}
+                getCareerTrendData={() => Utils.getCareerTrendData(careerApplicationsTrend)}
+                mostViewedLoading={careerMostViewedLoading}
+                mostViewedJobs={careerMostViewedJobs}
+                adminActionsLoading={careerAdminActionsLoading}
+                getCareerAdminActionsStats={() => Utils.getCareerAdminActionsStats(careerAdminActions)}
+              />
+            )}
+
+            {activeSection === 'users' && (
+              <UsersSection
+                loading={usersOverviewLoading}
+                getUsersOverviewStats={() => Utils.getUsersOverviewStats(usersOverview)}
+                signupTrendLoading={signupTrendLoading}
+                getUserSignupTrendData={() => Utils.getUserSignupTrendData(userSignupTrend)}
+                otpFunnelLoading={otpFunnelLoading}
+                getOtpFunnelData={() => Utils.getOtpFunnelData(otpFunnel)}
+                dauLoading={dauLoading}
+                getDailyActiveUsersData={() => Utils.getDailyActiveUsersData(dailyActiveUsers)}
+                countryLoading={usersCountryLoading}
+                getUsersByCountryData={() => Utils.getUsersByCountryData(usersByCountry)}
+              />
+            )}
+          </div>
+
+          {/* ── Quick Actions ─────────────────────────────────── */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6">
+            <h3 className="text-sm font-semibold text-slate-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {QUICK_ACTIONS.map((action) => (
                 <button
-                  key={range}
-                  onClick={() => setSelectedRange(range === 'day' ? '7d' : range === 'week' ? '7d' : range === 'month' ? '30d' : '90d')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium ${selectedRange.includes(range.slice(0, -1)) ? 'bg-[#00162d] text-white' : 'bg-white text-gray-700 border border-gray-300'}`}
+                  key={action.label}
+                  className="group flex flex-col items-center gap-2.5 p-4 rounded-xl border border-slate-200/80 hover:border-slate-300 hover:shadow-md hover:shadow-slate-100 hover:-translate-y-0.5 transition-all duration-200"
                 >
-                  {range.charAt(0).toUpperCase() + range.slice(1)}
+                  <div className={`${action.bg} w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <action.icon className={action.color} size={18} />
+                  </div>
+                  <span className="text-xs font-medium text-slate-600 group-hover:text-slate-900 transition-colors">
+                    {action.label}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* CONTENT SECTIONS */}
-          {activeSection === 'overview' && (
-            <OverviewSection
-              loading={summaryLoading}
-              error={summaryError}
-              getHostStats={() => Utils.getHostStats(analyticsSummary)}
-              getPropertyStats={() => Utils.getPropertyStats(analyticsSummary)}
-              getEventStats={() => Utils.getEventStats(eventAnalyticsSummary)}
-              getBuySellOverviewStats={() => Utils.getBuySellOverviewStats(buySellOverview)}
-              getTravelStats={() => Utils.getTravelStats(travelOverview)}
-              getCommunityStats={() => Utils.getCommunityStats(communityOverview)}
-              analyticsTimeseries={analyticsTimeseries}
-              timeseriesLoading={timeseriesLoading}
-              selectedEvent={selectedEvent}
-              setSelectedEvent={setSelectedEvent}
-              analyticsByLocation={analyticsByLocation}
-              locationLoading={locationLoading}
-              getLocationDataForChart={() => Utils.getLocationDataForChart(analyticsByLocation)}
-            />
-          )}
-
-          {activeSection === 'events' && (
-            <EventsSection
-              loading={eventSummaryLoading}
-              getEventStats={() => Utils.getEventStats(eventAnalyticsSummary)}
-              eventEngagementTimeseries={eventEngagementTimeseries}
-              eventEngagementLoading={eventEngagementLoading}
-              eventAnalyticsByLocation={eventAnalyticsByLocation}
-              eventLocationLoading={eventLocationLoading}
-              getEventLocationDataForChart={() => Utils.getEventLocationDataForChart(eventAnalyticsByLocation)}
-            />
-          )}
-
-          {activeSection === 'accommodations' && (
-            <AccommodationsSection
-              loading={summaryLoading}
-              getPropertyStats={() => Utils.getPropertyStats(analyticsSummary)}
-              getPropertyStatusData={() => Utils.getPropertyStatusData(analyticsSummary)}
-              getHostStatusData={() => Utils.getHostStatusData(analyticsSummary)}
-            />
-          )}
-
-          {activeSection === 'buysell' && (
-            <BuySellSection
-              loading={buySellOverviewLoading}
-              getBuySellOverviewStats={() => Utils.getBuySellOverviewStats(buySellOverview)}
-              buySellTrendLoading={buySellTrendLoading}
-              getBuySellTrendData={() => Utils.getBuySellTrendData(buySellTrend, selectedRange)}
-              buySellCountryLoading={buySellCountryLoading}
-              getBuySellCountryData={() => Utils.getBuySellCountryData(buySellCountry)}
-              buySellRatioLoading={buySellRatioLoading}
-              getBuySellRatioData={() => Utils.getBuySellRatioData(buySellRatio)}
-            />
-          )}
-
-          {activeSection === 'travel' && (
-            <TravelSection
-              loading={travelOverviewLoading}
-              getTravelStats={() => Utils.getTravelStats(travelOverview)}
-              travelTrendLoading={travelTrendLoading}
-              getTravelTrendData={() => Utils.getTravelTrendData(travelTrend)}
-              travelCountryLoading={travelCountryLoading}
-              getTravelCountryData={() => Utils.getTravelCountryData(travelCountry)}
-              travelMatchConversionLoading={travelMatchConversionLoading}
-              getTravelMatchConversionData={() => Utils.getTravelMatchConversionData(travelMatchConversion)}
-            />
-          )}
-
-          {activeSection === 'communities' && (
-            <CommunitiesSection
-              loading={communityOverviewLoading}
-              getCommunityStats={() => Utils.getCommunityStats(communityOverview)}
-              communityTrendLoading={communityTrendLoading}
-              getCommunityTrendData={() => Utils.getCommunityTrendData(communityTrend)}
-              communityCountryLoading={communityCountryLoading}
-              getCommunityCountryData={() => Utils.getCommunityCountryData(communityCountry)}
-              communityRatioLoading={communityRatioLoading}
-              getCommunityRatioData={() => Utils.getCommunityRatioData(communityRatio)}
-            />
-          )}
-
-          {activeSection === 'careers' && (
-            <CareersSection
-              loading={careerJobsLoading}
-              getCareerJobsStats={() => Utils.getCareerJobsStats(careerJobsOverview)}
-              funnelLoading={careerFunnelLoading}
-              getCareerFunnelData={() => Utils.getCareerFunnelData(careerApplicationsFunnel)}
-              trendLoading={careerTrendLoading}
-              getCareerTrendData={() => Utils.getCareerTrendData(careerApplicationsTrend)}
-              mostViewedLoading={careerMostViewedLoading}
-              mostViewedJobs={careerMostViewedJobs}
-              adminActionsLoading={careerAdminActionsLoading}
-              getCareerAdminActionsStats={() => Utils.getCareerAdminActionsStats(careerAdminActions)}
-            />
-          )}
-
-          {activeSection === 'users' && (
-            <UsersSection
-              loading={usersOverviewLoading}
-              getUsersOverviewStats={() => Utils.getUsersOverviewStats(usersOverview)}
-              signupTrendLoading={signupTrendLoading}
-              getUserSignupTrendData={() => Utils.getUserSignupTrendData(userSignupTrend)}
-              otpFunnelLoading={otpFunnelLoading}
-              getOtpFunnelData={() => Utils.getOtpFunnelData(otpFunnel)}
-              dauLoading={dauLoading}
-              getDailyActiveUsersData={() => Utils.getDailyActiveUsersData(dailyActiveUsers)}
-              countryLoading={usersCountryLoading}
-              getUsersByCountryData={() => Utils.getUsersByCountryData(usersByCountry)}
-            />
-          )}
-
-          {/* QUICK ACTIONS */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Building className="text-blue-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Add Property</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Calendar className="text-green-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Create Event</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Briefcase className="text-purple-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Post Job</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <UserPlus className="text-orange-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Add User</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <FileText className="text-red-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Reports</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Settings className="text-gray-500 mb-2" size={24} />
-                <span className="text-xs text-gray-700">Settings</span>
-              </button>
-            </div>
-          </div>
         </div>
-      </main >
-    </div >
+      </main>
+    </div>
   );
 };
 

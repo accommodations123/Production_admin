@@ -332,7 +332,7 @@ const ManageListings = () => {
                                 <p className="text-sm font-medium text-gray-600">Pending Listings</p>
                                 <p className="text-2xl font-bold text-gray-900 mt-1">{pending.length}</p>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <Clock className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -343,7 +343,7 @@ const ManageListings = () => {
                                 <p className="text-sm font-medium text-gray-600">Approved Listings</p>
                                 <p className="text-2xl font-bold text-gray-900 mt-1">{approved.length}</p>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <CheckCircle className="w-6 h-6 text-white" />
                             </div>
                         </div>
@@ -354,7 +354,7 @@ const ManageListings = () => {
                                 <p className="text-sm font-medium text-gray-600">Denied Listings</p>
                                 <p className="text-2xl font-bold text-gray-900 mt-1">{denied.length}</p>
                             </div>
-                            <div className="p-3 rounded-lg" style={{ backgroundColor: '#00162d' }}>
+                            <div className="p-3 rounded-lg bg-slate-900">
                                 <Ban className="w-6 h-6 text-white" />
                             </div>
                         </div>

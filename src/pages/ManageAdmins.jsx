@@ -212,7 +212,7 @@ function CreateAdminModal({ isOpen, onClose, onCreated }) {
                 className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden animate-[slideUp_0.3s_ease-out]"
             >
                 {/* Header */}
-                <div className="bg-gradient-to-r from-[#00162d] to-[#012c50] px-6 py-5 flex items-center justify-between">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
                             <UserPlus className="w-5 h-5 text-white" />
@@ -315,8 +315,8 @@ function CreateAdminModal({ isOpen, onClose, onCreated }) {
                                         type="button"
                                         onClick={() => handleChange("role", role)}
                                         className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all duration-200 ${isSelected
-                                                ? "border-[#cb2926] bg-red-50 shadow-md shadow-red-100"
-                                                : "border-gray-200 hover:border-gray-300 bg-white"
+                                            ? "border-[#cb2926] bg-red-50 shadow-md shadow-red-100"
+                                            : "border-gray-200 hover:border-gray-300 bg-white"
                                             }`}
                                     >
                                         <div
@@ -587,8 +587,8 @@ export default function ManageAdmins() {
                                 key={f.key}
                                 onClick={() => setRoleFilter(f.key)}
                                 className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${roleFilter === f.key
-                                        ? "bg-[#cb2926] text-white border-[#cb2926] shadow-md shadow-red-200"
-                                        : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+                                    ? "bg-[#cb2926] text-white border-[#cb2926] shadow-md shadow-red-200"
+                                    : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
                                     }`}
                             >
                                 {f.label}
@@ -629,8 +629,8 @@ export default function ManageAdmins() {
                                 key={page}
                                 onClick={() => fetchAdmins(page)}
                                 className={`w-9 h-9 rounded-lg text-sm font-semibold transition-all ${pagination.page === page
-                                        ? "bg-[#cb2926] text-white shadow-md"
-                                        : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
+                                    ? "bg-[#cb2926] text-white shadow-md"
+                                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
                                     }`}
                             >
                                 {page}
