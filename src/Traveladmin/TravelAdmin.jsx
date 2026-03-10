@@ -65,7 +65,7 @@ import TravelDashboard from "./TravelDashboard";
 /* =====================
    API CONFIG
 ===================== */
-const BASE_URL = "https://api.nextkinlife.live";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 const TOKEN = localStorage.getItem("admin-auth");
 
 /* =====================

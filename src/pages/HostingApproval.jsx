@@ -50,8 +50,17 @@ const API = {
   PENDING: "https://api.nextkinlife.live/adminproperty/pending",
   APPROVED: "https://api.nextkinlife.live/adminproperty/admin/properties/approved",
   REJECTED: "https://api.nextkinlife.live/adminproperty/admin/properties/rejected",
-  APPROVE: (id) => `https://api.nextkinlife.liveadminproperty/approve/${id}`,
+  APPROVE: (id) => `https://api.nextkinlife.live/adminproperty/approve/${id}`,
   REJECT: (id) => `https://api.nextkinlife.live/adminproperty/reject/${id}`,
+};
+
+const API_BASE = "https://api.nextkinlife.live";
+
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http')) return imagePath;
+  const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+  return `${API_BASE}/${cleanPath}`;
 };
 
 // --- UTILITIES ---
@@ -519,7 +528,7 @@ const HostingApproval = () => {
   const PropertyCard = ({ property }) => {
     const PropertyIcon = getPropertyTypeIcon(property.propertyType);
     const hasError = imageError[property._id];
-    const mainPhoto = property.photos?.[0];
+    const mainPhoto = getImageUrl(property.photos?.[0]);
 
     return (
       <div className="group flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] ring-1 ring-slate-900/5 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
@@ -656,7 +665,7 @@ const HostingApproval = () => {
   const PropertyListItem = ({ property }) => {
     const PropertyIcon = getPropertyTypeIcon(property.propertyType);
     const hasError = imageError[`list-${property._id}`];
-    const mainPhoto = property.photos?.[0];
+    const mainPhoto = getImageUrl(property.photos?.[0]);
 
     return (
       <li className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] ring-1 ring-slate-100 transition-all hover:shadow-md sm:flex-row">
@@ -995,7 +1004,7 @@ const HostingApproval = () => {
                   <div className="relative h-80 lg:h-96 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200">
                     {viewProperty.photos?.[0] ? (
                       <img
-                        src={viewProperty.photos[0]}
+                        src={getImageUrl(viewProperty.photos[0])}
                         alt={viewProperty.title}
                         className="h-full w-full object-cover"
                       />
@@ -1030,7 +1039,7 @@ const HostingApproval = () => {
                         {viewProperty.photos.slice(1).map((photo, i) => (
                           <img
                             key={i}
-                            src={photo}
+                            src={getImageUrl(photo)}
                             className="h-24 w-full rounded-xl object-cover shadow-sm border border-slate-200"
                             alt={`Property ${i + 1}`}
                           />
