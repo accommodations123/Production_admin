@@ -117,7 +117,7 @@ function SecurityTab({ showToast }) {
         setSaving(true);
         try {
             const token = localStorage.getItem('admin-auth');
-            const res = await fetch(`${API_URL}/admin/change-password`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }) });
+            const res = await fetch(`${API_URL}/admin/change-password`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) }, body: JSON.stringify({ current_password: currentPass, new_password: newPass }) });
             if (!res.ok) { const d = await res.json(); setError(d.message || 'Failed to change password'); setSaving(false); return; }
             showToast('Password changed successfully', 'success');
             setCurrentPass(''); setNewPass(''); setConfirmPass('');

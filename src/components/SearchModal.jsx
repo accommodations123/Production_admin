@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ArrowRight, Clock, X, Command } from 'lucide-react';
 import {
-    Home, CheckCircle, Building, Calendar, Briefcase, Users,
+    Home, CheckCircle, Building, Briefcase, Users,
     ShoppingBag, Plane, ClipboardList, Shield, Settings, FileText,
 } from 'lucide-react';
 
@@ -13,7 +13,6 @@ const PAGES = [
     { name: 'Dashboard', path: '/dashboard', icon: Home, keywords: ['home', 'overview', 'analytics'] },
     { name: 'Hosting Approval', path: '/dashboard/hosting-approval', icon: CheckCircle, keywords: ['host', 'approve', 'pending'] },
     { name: 'Accommodation', path: '/dashboard/accommodation', icon: Building, keywords: ['property', 'listing', 'room', 'hotel'] },
-    { name: 'Events', path: '/dashboard/events', icon: Calendar, keywords: ['event', 'submission', 'create'] },
     { name: 'Career', path: '/dashboard/career', icon: Briefcase, keywords: ['job', 'application', 'recruit', 'hire'] },
     { name: 'Community', path: '/dashboard/community', icon: Users, keywords: ['group', 'post', 'member'] },
     { name: 'Buy & Sell', path: '/dashboard/buy-and-sell', icon: ShoppingBag, keywords: ['marketplace', 'listing', 'product'] },

@@ -16,6 +16,16 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon, HeartIcon as HeartSolidIcon } from "@heroicons/react/24/solid";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  const normalizedPath = imagePath.replace(/\\/g, '/');
+  if (normalizedPath.startsWith('http')) return normalizedPath;
+  const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+  return `${API_BASE}/${cleanPath}`;
+};
+
 const VIEW_MODES = { GRID: 'grid', LIST: 'list', MAP: 'map' };
 
 const PropertyList = ({ type, onBack, onPropertyClick }) => {
@@ -101,7 +111,7 @@ const PropertyList = ({ type, onBack, onPropertyClick }) => {
           <motion.img
             whileHover={{ scale: 1.05 }}
             transition={{ duration: 0.6 }}
-            src={p.photos && p.photos.length > 0 ? p.photos[0] : "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80"}
+            src={p.photos && p.photos.length > 0 ? getImageUrl(p.photos[0]) : "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80"}
             alt={p.title}
             className="w-full h-full object-cover"
           />
@@ -379,7 +389,7 @@ const PropertyList = ({ type, onBack, onPropertyClick }) => {
                   >
                     <div className="sm:w-64 h-48 sm:h-auto relative overflow-hidden">
                       <img
-                        src={item.property.photos?.[0] || "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80"}
+                        src={item.property.photos?.[0] ? getImageUrl(item.property.photos[0]) : "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?q=80"}
                         alt={item.property.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />

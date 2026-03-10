@@ -11,7 +11,6 @@ const ROUTE_MAP = {
   'dashboard': 'Dashboard',
   'hosting-approval': 'Hosting Approval',
   'accommodation': 'Accommodation',
-  'events': 'Events',
   'career': 'Career',
   'buy-and-sell': 'Buy & Sell',
   'manage-admins': 'Manage Admins',

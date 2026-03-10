@@ -20,7 +20,7 @@ const Community = () => {
 
   const [formData, setFormData] = useState({
     name: "", description: "", city: "", state: "", topics: [],
-    avatar_image: "", cover_image: "", visibility: "public", join_policy: "open", country: "",
+    avatar_image: "", cover_image: "", visibility: "public", join_policy: "open", country: "", pincode: "",
   });
 
   const [newTopic, setNewTopic] = useState("");
@@ -87,7 +87,7 @@ const Community = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to create community");
-      setFormData({ name: "", description: "", city: "", state: "", topics: [], avatar_image: "", cover_image: "", visibility: "public", join_policy: "open", country: "" });
+      setFormData({ name: "", description: "", city: "", state: "", topics: [], avatar_image: "", cover_image: "", visibility: "public", join_policy: "open", country: "", pincode: "" });
       setShowCreateModal(false);
       fetchCommunities();
     } catch (err) { setError(err.message); }
@@ -218,8 +218,8 @@ const Community = () => {
                 key={f.key}
                 onClick={() => setStatusFilter(f.key)}
                 className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${statusFilter === f.key
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200"
                   }`}
               >
                 {f.label}
@@ -391,6 +391,7 @@ const Community = () => {
                             { label: "Country", value: selectedCommunity.country },
                             { label: "State", value: selectedCommunity.state },
                             { label: "City", value: selectedCommunity.city },
+                            { label: "Pincode", value: selectedCommunity.pincode || "N/A" },
                           ].map((item) => (
                             <div key={item.label} className="flex items-center gap-3">
                               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -483,9 +484,10 @@ const Community = () => {
                   <InputField label="Country *" name="country" value={formData.country} onChange={handleInputChange} placeholder="Enter country" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <InputField label="City *" name="city" value={formData.city} onChange={handleInputChange} placeholder="Enter city" />
                   <InputField label="State *" name="state" value={formData.state} onChange={handleInputChange} placeholder="Enter state" />
+                  <InputField label="Pincode *" name="pincode" value={formData.pincode} onChange={handleInputChange} placeholder="Enter pincode" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

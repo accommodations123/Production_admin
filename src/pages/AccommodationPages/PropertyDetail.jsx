@@ -14,6 +14,16 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
+const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    const normalizedPath = imagePath.replace(/\\/g, '/');
+    if (normalizedPath.startsWith('http')) return normalizedPath;
+    const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
+    return `${API_BASE}/${cleanPath}`;
+};
+
 const PropertyDetail = ({ property, onBack }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const p = property?.property || {};
@@ -39,7 +49,7 @@ const PropertyDetail = ({ property, onBack }) => {
                 {p.photos && p.photos.length > 0 ? (
                     <div className="w-full h-full relative">
                         <img
-                            src={p.photos[currentImageIndex]}
+                            src={getImageUrl(p.photos[currentImageIndex])}
                             alt={p.title}
                             className="w-full h-full object-cover transition-transform duration-1000"
                         />
@@ -209,7 +219,9 @@ const PropertyDetail = ({ property, onBack }) => {
                                 </div>
                             </div>
 
-                            <button className="mt-6 w-full py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-colors shadow-lg shadow-white/5">
+                            <button
+                                onClick={() => window.location.href = `mailto:${h.email}`}
+                                className="mt-6 w-full py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-colors shadow-lg shadow-white/5">
                                 Contact Host
                             </button>
                         </div>
@@ -237,7 +249,9 @@ const PropertyDetail = ({ property, onBack }) => {
                                 <MapPinIcon className="w-8 h-8 text-slate-500 mb-2" />
                             </div>
                             {/* You would integrate Google Maps / Leaflet here */}
-                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/10 transition-colors cursor-pointer">
+                            <div
+                                onClick={() => window.open(`https://maps.google.com/?q=${p.city},${p.country}`, '_blank')}
+                                className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/10 transition-colors cursor-pointer">
                                 <span className="px-4 py-2 bg-white/90 text-slate-900 text-sm font-bold rounded-full shadow-lg">
                                     View on Map
                                 </span>

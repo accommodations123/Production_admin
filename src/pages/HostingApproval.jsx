@@ -58,8 +58,10 @@ const API_BASE = "https://api.nextkinlife.live";
 
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null;
-  if (imagePath.startsWith('http')) return imagePath;
-  const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+  // If the path is already a full URL, return it as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+  const normalizedPath = imagePath.replace(/\\/g, '/');
+  const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
   return `${API_BASE}/${cleanPath}`;
 };
 
