@@ -125,10 +125,11 @@ export default function AdminLogin() {
                                     Password
                                 </label>
 
-                                <div className="flex items-center bg-white border border-gray-300 rounded-lg 
-                                    focus-within:border-[#cb2926] focus-within:ring-2 
-                                    focus-within:ring-[#cb2926] overflow-hidden transition-all">
-
+                                <div
+                                    className="relative flex items-center bg-white border border-gray-300 rounded-lg 
+    focus-within:border-[#cb2926] focus-within:ring-2 focus-within:ring-[#cb2926] 
+    overflow-hidden transition-all"
+                                >
                                     <div className="bg-gray-100 p-3 border-r border-gray-300">
                                         <Lock className="text-gray-600" size={20} />
                                     </div>
@@ -138,19 +139,19 @@ export default function AdminLogin() {
                                         value={password}
                                         required
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="flex-1 p-3 outline-none text-gray-900 bg-white"
+                                        className="flex-1 p-3 outline-none text-gray-900 bg-white pr-12"
                                         placeholder="Enter your password"
                                     />
 
-                                    <div
+                                    <button
+                                        type="button"
                                         onClick={() => setShowPass(!showPass)}
-                                        className="px-3 cursor-pointer text-gray-600 hover:text-[#cb2926]"
+                                        className="absolute right-3 text-gray-600 hover:text-[#cb2926]"
                                     >
                                         {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                                    </div>
+                                    </button>
                                 </div>
                             </div>
-
                             {/* LOGIN BUTTON */}
                             <button
                                 type="submit"

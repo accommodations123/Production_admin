@@ -52,7 +52,7 @@ const MENU_SECTIONS = [
   {
     label: 'System',
     items: [
-      { name: 'Activity Log', path: '/dashboard/activity-log', icon: FileText, roles: ['super_admin', 'admin'] },
+      // { name: 'Activity Log', path: '/dashboard/activity-log', icon: FileText, roles: ['super_admin', 'admin'] },
       { name: 'Settings', path: '/dashboard/settings', icon: Settings, roles: ['super_admin', 'admin'] },
     ],
   },

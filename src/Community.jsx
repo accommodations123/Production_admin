@@ -403,11 +403,11 @@ const Community = () => {
                       </div>
 
                       {/* Stats */}
-                      <div className="grid grid-cols-3 gap-3 mt-6">
+                      <div className="grid grid-cols-2 gap-3 mt-6">
                         {[
                           { icon: Users, label: "Members", value: selectedCommunity.members_count, color: "text-blue-600", bg: "bg-blue-50" },
                           { icon: MessageSquare, label: "Posts", value: selectedCommunity.posts_count, color: "text-violet-600", bg: "bg-violet-50" },
-                          { icon: Calendar, label: "Events", value: selectedCommunity.events_count, color: "text-emerald-600", bg: "bg-emerald-50" },
+                          // { icon: Calendar, label: "Events", value: selectedCommunity.events_count, color: "text-emerald-600", bg: "bg-emerald-50" },
                         ].map((s) => (
                           <div key={s.label} className="bg-slate-50 rounded-xl p-4 text-center">
                             <s.icon className={`w-5 h-5 ${s.color} mx-auto mb-2`} />
@@ -418,7 +418,7 @@ const Community = () => {
                       </div>
 
                       {/* Members */}
-                      <div className="mt-6">
+                      {/* <div className="mt-6">
                         <h4 className="text-sm font-semibold text-slate-700 mb-3">Members</h4>
                         <div className="bg-slate-50 rounded-xl p-4">
                           {selectedCommunity.members?.length > 0 ? (
@@ -437,7 +437,7 @@ const Community = () => {
                             <p className="text-sm text-slate-400 text-center py-4">No members found</p>
                           )}
                         </div>
-                      </div>
+                      </div> */}
 
                       {/* Status */}
                       <div className="mt-6 flex items-center gap-3">
