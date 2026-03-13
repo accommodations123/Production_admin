@@ -239,8 +239,14 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
             jobTitle = `Job ID: ${raw.job_id}`;
         }
 
-        // 6. Resume URL
-        const resume = raw.resume_url || raw.resume || raw.cv || raw.cv_url || '';
+        // 6. Resume URL (Fix: Use CloudFront CDN to avoid S3 Access Denied)
+        let resume = raw.resume_url || raw.resume || raw.cv || raw.cv_url || '';
+        const S3_BASE = "https://prod-nextkinlife-backend-imagestoring.s3.us-east-2.amazonaws.com";
+        const CLOUDFRONT_BASE = "https://d3dqp3l6ug81j3.cloudfront.net";
+
+        if (resume && resume.includes(S3_BASE)) {
+            resume = resume.replace(S3_BASE, CLOUDFRONT_BASE);
+        }
 
         // 7. Applied date
         const applied = raw.createdAt || raw.created_at || raw.application_date || raw.date_applied || new Date().toISOString();
