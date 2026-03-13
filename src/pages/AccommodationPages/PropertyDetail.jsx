@@ -219,11 +219,11 @@ const PropertyDetail = ({ property, onBack }) => {
                                 </div>
                             </div>
 
-                            <button
+                            {/* <button
                                 onClick={() => window.location.href = `mailto:${h.email}`}
                                 className="mt-6 w-full py-3 bg-white text-slate-900 font-bold rounded-xl hover:bg-slate-100 transition-colors shadow-lg shadow-white/5">
                                 Contact Host
-                            </button>
+                            </button> */}
                         </div>
 
                         {/* Rules Card */}
