@@ -93,7 +93,7 @@ function HostPending() {
                                 <img src={`https://ui-avatars.com/api/?name=${selectedHost.full_name}&background=random&size=128`} className="w-20 h-20 rounded-full border-4 border-indigo-50" />
                                 <div>
                                     <h3 className="text-2xl font-bold text-gray-900">{selectedHost.full_name}</h3>
-                                    <p className="text-gray-500">ID: {selectedHost.id} | User ID: {selectedHost.user_id}</p>
+                                    <p className="text-gray-500">{selectedHost.email}</p>
                                 </div>
                             </div>
 
@@ -133,8 +133,8 @@ function HostPending() {
                                 <div className="space-y-4">
                                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">System Info</h4>
                                     <ul className="space-y-3 text-sm">
-                                        <li><span className="text-gray-500 block text-xs">Created At</span>{new Date(selectedHost.createdAt).toLocaleString()}</li>
-                                        <li><span className="text-gray-500 block text-xs">Updated At</span>{new Date(selectedHost.updatedAt).toLocaleString()}</li>
+                                        <li><span className="text-gray-500 block text-xs">Created At</span>{selectedHost.created_at ? new Date(selectedHost.created_at).toLocaleString() : 'N/A'}</li>
+                                        <li><span className="text-gray-500 block text-xs">Updated At</span>{selectedHost.updated_at ? new Date(selectedHost.updated_at).toLocaleString() : 'N/A'}</li>
                                     </ul>
                                 </div>
                             </div>
