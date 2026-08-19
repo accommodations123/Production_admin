@@ -1,0 +1,298 @@
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Stack,
+  Card,
+  CardContent,
+  CardHeader,
+  Grid,
+  Typography,
+  Avatar,
+  Box,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  ListItemSecondaryAction,
+  Chip,
+  alpha,
+} from "@mui/material";
+import {
+  Info,
+  Close,
+  Flight,
+  Person,
+  FlightTakeoff,
+  FlightLand,
+  CalendarToday,
+  Schedule,
+  AirlineSeatReclineNormal,
+  Home,
+  Verified,
+  CheckCircle,
+  ErrorOutline,
+  People,
+  ExpandMore,
+  ExpandLess,
+  ChevronRight,
+  ArrowForward,
+  Phone,
+  WhatsApp,
+  Facebook,
+  Instagram,
+} from "@mui/icons-material";
+import { formatUTCDate, formatUTCTime } from "../utils/timezone";
+
+export default function TripDetailsModal({ open, onClose, trip }) {
+  if (!trip) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ pb: 1, borderBottom: '1px solid #eee' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ bgcolor: alpha('#1976d2', 0.1), borderRadius: 2, p: 1, mr: 2 }}>
+              <Info sx={{ fontSize: 20, color: '#1976d2' }} />
+            </Box>
+            <Typography variant="h6" fontWeight="bold">
+              Trip Full Details
+            </Typography>
+          </Box>
+          <IconButton edge="end" onClick={onClose}>
+            <Close />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 2 }}>
+        <Stack spacing={3}>
+          {/* Trip Information Card */}
+          <Card elevation={0} sx={{ borderRadius: 2, bgcolor: '#f9f9f9' }}>
+            <CardHeader
+              title="Trip Information"
+              titleTypographyProps={{ variant: 'h6', fontWeight: 'bold' }}
+              avatar={
+                <Avatar sx={{ bgcolor: '#1976d2' }}>
+                  <Flight />
+                </Avatar>
+              }
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <FlightTakeoff sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      From
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.from_city}, {trip.from_country}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <FlightLand sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      To
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.to_city}, {trip.to_country}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <CalendarToday sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Travel Date
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {formatUTCDate(trip.travel_date, trip.departure_time)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Schedule sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Departure Time
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {formatUTCTime(trip.travel_date, trip.departure_time)}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Schedule sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Arrival
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.arrival_date ? `${formatUTCDate(trip.arrival_date, trip.arrival_time)} | ${formatUTCTime(trip.arrival_date, trip.arrival_time)}` : "N/A"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <AirlineSeatReclineNormal sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Airline
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.airline} ({trip.flight_number})
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+
+          {/* Host Details Card */}
+          <Card elevation={0} sx={{ borderRadius: 2, bgcolor: '#f9f9f9' }}>
+            <CardHeader
+              title="Host Details"
+              titleTypographyProps={{ variant: 'h6', fontWeight: 'bold' }}
+              avatar={
+                <Avatar sx={{ bgcolor: '#4caf50' }}>
+                  <Person />
+                </Avatar>
+              }
+            />
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Avatar sx={{ mr: 2, width: 48, height: 48, bgcolor: '#1976d2' }}>
+                  {trip.host?.full_name?.charAt(0) || 'U'}
+                </Avatar>
+                <Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.host?.full_name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {trip.host?.User?.email}
+                  </Typography>
+                </Box>
+              </Box>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Home sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      City
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.host?.city || "N/A"}
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Verified sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                    <Typography variant="body2" color="text.secondary">
+                      Verified
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={500}>
+                    {trip.host?.User?.verified ? (
+                      <Chip label="Yes" color="success" size="small" icon={<CheckCircle sx={{ fontSize: 14 }} />} />
+                    ) : (
+                      <Chip label="No" color="default" size="small" icon={<ErrorOutline sx={{ fontSize: 14 }} />} />
+                    )}
+                  </Typography>
+                </Grid>
+                {trip.host?.phone && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Phone sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Phone
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" fontWeight={500}>
+                      {trip.host.phone}
+                    </Typography>
+                  </Grid>
+                )}
+                {trip.host?.whatsapp && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <WhatsApp sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        WhatsApp
+                      </Typography>
+                    </Box>
+                    <Typography variant="body1" fontWeight={500}>
+                      {trip.host.whatsapp}
+                    </Typography>
+                  </Grid>
+                )}
+                {trip.host?.facebook && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Facebook sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Facebook
+                      </Typography>
+                    </Box>
+                    {trip.host.facebook.startsWith('http') ? (
+                      <Typography
+                        variant="body1"
+                        fontWeight={500}
+                        component="a"
+                        href={trip.host.facebook}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ color: '#1976d2', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        View Facebook Profile
+                      </Typography>
+                    ) : (
+                      <Typography variant="body1" fontWeight={500}>
+                        {trip.host.facebook}
+                      </Typography>
+                    )}
+                  </Grid>
+                )}
+                {trip.host?.instagram && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Instagram sx={{ fontSize: 16, color: '#888', mr: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Instagram
+                      </Typography>
+                    </Box>
+                    {trip.host.instagram.startsWith('http') ? (
+                      <Typography
+                        variant="body1"
+                        fontWeight={500}
+                        component="a"
+                        href={trip.host.instagram}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ color: '#1976d2', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                      >
+                        View Instagram Profile
+                      </Typography>
+                    ) : (
+                      <Typography variant="body1" fontWeight={500}>
+                        {trip.host.instagram}
+                      </Typography>
+                    )}
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
+        </Stack>
+      </DialogContent>
+
+    
+    </Dialog>
+  );
+}
