@@ -215,7 +215,6 @@ const Events = () => {
   const token = localStorage.getItem("admin-auth");
 
   // --- DATA FETCHING ---
-  // --- DATA FETCHING ---
   const fetchEvents = async () => {
     setLoading(true);
     if (!token) {
@@ -226,9 +225,15 @@ const Events = () => {
     try {
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-        axios.get(`${API_BASE}/events/admin/pending`, { headers }).catch(err => { console.error("Pending events error:", err); return { data: { events: [] } }; }),
-        axios.get(`${API_BASE}/events/admin/events/approved`, { headers }).catch(err => { console.error("Approved events error:", err); return { data: { events: [] } }; }),
-        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers }).catch(err => { console.error("Rejected events error:", err); return { data: { events: [] } }; })
+        axios.get(`${API_BASE}/events/admin/events/pending`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/pending`, { headers }))
+          .catch(err => { console.error("Pending events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/approved`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/approved`, { headers }))
+          .catch(err => { console.error("Approved events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/rejected`, { headers }))
+          .catch(err => { console.error("Rejected events error:", err); return { data: { events: [] } }; })
       ]);
 
       const pendingData = pendingRes.data || {};
@@ -239,13 +244,24 @@ const Events = () => {
       const approvedEvents = Array.isArray(approvedData) ? approvedData : (Array.isArray(approvedData.events) ? approvedData.events : (Array.isArray(approvedData.data) ? approvedData.data : []));
       const rejectedEvents = Array.isArray(rejectedData) ? rejectedData : (Array.isArray(rejectedData.events) ? rejectedData.events : (Array.isArray(rejectedData.data) ? rejectedData.data : []));
 
-      // Add status property if missing (API might not return it for approved/rejected endpoints)
-      const formattedApproved = approvedEvents.map(e => ({ ...e, status: 'approved' }));
-      const formattedRejected = rejectedEvents.map(e => ({ ...e, status: 'rejected' }));
-      // Pending usually has status, but ensure it
-      const formattedPending = pendingEvents.map(e => ({ ...e, status: 'pending' }));
+      // Add status property if missing
+      const formattedApproved = approvedEvents.map(e => ({ ...e, status: e.status || 'approved' }));
+      const formattedRejected = rejectedEvents.map(e => ({ ...e, status: e.status || 'rejected' }));
+      const formattedPending = pendingEvents.map(e => ({ ...e, status: e.status || 'pending' }));
 
-      setEvents([...formattedPending, ...formattedApproved, ...formattedRejected]);
+      // Deduplicate by ID and prioritize approved/rejected status over pending
+      const eventMap = new Map();
+      formattedPending.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, e);
+      });
+      formattedApproved.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, { ...e, status: 'approved' });
+      });
+      formattedRejected.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, { ...e, status: 'rejected' });
+      });
+
+      setEvents(Array.from(eventMap.values()));
     } catch (err) {
       console.error("Failed to fetch events", err);
       setEvents([]);
@@ -322,14 +338,19 @@ const Events = () => {
   const handleApprove = async (id) => {
     if (!token) return;
     try {
-      const res = await axios.put(`${API_BASE}/events/admin/approve/${id}`, {}, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
 
-      if (res.status === 200 || res.status === 204 || res.data) {
+      let res;
+      try {
+        res = await axios.put(`${API_BASE}/events/admin/events/approve/${id}`, {}, { headers });
+      } catch {
+        res = await axios.put(`${API_BASE}/events/admin/approve/${id}`, {}, { headers });
+      }
+
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
         setEvents(prevEvents =>
           prevEvents.map(event =>
             event.id === id ? { ...event, status: 'approved' } : event
@@ -351,16 +372,20 @@ const Events = () => {
     if (!rejectionReason.trim() || !token) return;
 
     try {
-      const res = await axios.put(`${API_BASE}/events/admin/reject/${currentEventId}`, {
-        rejection_reason: rejectionReason
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
+      const body = { rejection_reason: rejectionReason };
 
-      if (res.status === 200 || res.status === 204 || res.data) {
+      let res;
+      try {
+        res = await axios.put(`${API_BASE}/events/admin/events/reject/${currentEventId}`, body, { headers });
+      } catch {
+        res = await axios.put(`${API_BASE}/events/admin/reject/${currentEventId}`, body, { headers });
+      }
+
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
         setRejectModalOpen(false);
         setRejectionReason("");
         setEvents(prevEvents =>
@@ -380,14 +405,19 @@ const Events = () => {
     if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
 
     try {
-      const res = await axios.delete(`${API_BASE}/events/admin/delete/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
 
-      if (res.status === 200 || res.status === 204 || res.data) {
+      let res;
+      try {
+        res = await axios.delete(`${API_BASE}/events/admin/events/delete/${id}`, { headers });
+      } catch {
+        res = await axios.delete(`${API_BASE}/events/admin/delete/${id}`, { headers });
+      }
+
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
         setEvents(prevEvents => prevEvents.filter(event => event.id !== id));
         setRefreshKey(prev => prev + 1);
       }
