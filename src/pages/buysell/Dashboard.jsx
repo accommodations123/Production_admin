@@ -17,7 +17,7 @@ import axios from "axios";
 /* ==============================
    API CONFIG
 ================================ */
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const API_BASE = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
 
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
 

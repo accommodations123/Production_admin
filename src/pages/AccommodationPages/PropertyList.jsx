@@ -16,7 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon, HeartIcon as HeartSolidIcon } from "@heroicons/react/24/solid";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const API_BASE = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
 
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null;

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 const AccomadationStats = () => {
-    const BASE_URL = `${import.meta.env.VITE_API_URL || "https://api.nextkinlife.live"}/adminproperty`;
+    const BASE_URL = `${import.meta.env.VITE_API_URL || "http://35.153.223.230:5000"}/adminproperty`;
 
     const [statusStats, setStatusStats] = useState(null);
     const [countryStats, setCountryStats] = useState([]);

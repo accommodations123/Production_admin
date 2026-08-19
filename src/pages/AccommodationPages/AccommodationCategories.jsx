@@ -8,7 +8,7 @@ import PropertyList from "./PropertyList";
 import PropertyDetail from "./PropertyDetail";
 
 // --- CONFIG ---
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
 const API_URL = `${BASE_URL}/admin/approved/approved-host-details`;
 const BRAND_COLORS = {
   primary: "#0f172a", // Slate-900

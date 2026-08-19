@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
 
 const REJECTION_REASONS = [
   "Missing portfolio",
