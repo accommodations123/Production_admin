@@ -24,11 +24,38 @@ import {
   ThumbsUp,
   Clock,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Instagram,
+  Linkedin,
+  Twitter,
+  Github,
+  Facebook,
+  Youtube,
+  ExternalLink,
+  MessageCircle
 } from "lucide-react";
 import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
+
+const formatSocialUrl = (type, val) => {
+  if (!val) return "";
+  const clean = String(val).trim();
+  if (clean.startsWith("http://") || clean.startsWith("https://")) return clean;
+  const handle = clean.replace(/^@/, "");
+  if (type === "instagram") return `https://instagram.com/${handle}`;
+  if (type === "linkedin") return `https://linkedin.com/in/${handle}`;
+  if (type === "twitter" || type === "x") return `https://x.com/${handle}`;
+  if (type === "github") return `https://github.com/${handle}`;
+  if (type === "facebook") return `https://facebook.com/${handle}`;
+  if (type === "youtube") return `https://youtube.com/${handle}`;
+  if (type === "whatsapp") {
+    const digits = clean.replace(/[^0-9]/g, "");
+    return digits ? `https://wa.me/${digits}` : clean;
+  }
+  return clean;
+};
 
 const REJECTION_REASONS = [
   "Missing portfolio",
@@ -545,7 +572,7 @@ const People = () => {
                           </td>
 
                           <td className="px-5 py-4">
-                            <div className="space-y-0.5 text-xs text-slate-500">
+                            <div className="space-y-1 text-xs text-slate-500">
                               {p.email && (
                                 <div className="flex items-center gap-1.5 truncate">
                                   <Mail className="w-3 h-3 text-slate-400 shrink-0" />
@@ -558,6 +585,50 @@ const People = () => {
                                   <span>{p.city || p.location?.city || p.country || p.location?.country || "N/A"}</span>
                                 </div>
                               )}
+                              {/* Social Links Row in Table */}
+                              {(() => {
+                                const insta = p.instagram || p.social_links?.instagram || p.contact_info?.instagram;
+                                const linkedin = p.linkedin || p.social_links?.linkedin || p.contact_info?.linkedin;
+                                const wa = p.whatsapp || p.social_links?.whatsapp || p.contact_info?.whatsapp;
+                                if (!insta && !linkedin && !wa) return null;
+                                return (
+                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                    {insta && (
+                                      <a
+                                        href={formatSocialUrl("instagram", insta)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={`Instagram: @${String(insta).replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")}`}
+                                        className="p-1 rounded-md bg-pink-50 text-pink-600 hover:bg-pink-100 transition-colors"
+                                      >
+                                        <Instagram className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                    {linkedin && (
+                                      <a
+                                        href={formatSocialUrl("linkedin", linkedin)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="LinkedIn Profile"
+                                        className="p-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                      >
+                                        <Linkedin className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                    {wa && (
+                                      <a
+                                        href={formatSocialUrl("whatsapp", wa)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="WhatsApp Chat"
+                                        className="p-1 rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                                      >
+                                        <MessageCircle className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </td>
 
@@ -974,7 +1045,13 @@ const People = () => {
                               <div className="flex items-center gap-2">
                                 <Globe className="w-4 h-4 text-slate-400 shrink-0" />
                                 <span className="font-semibold text-slate-500 w-16">Website:</span>
-                                <span>{p.website || p.socialLink || "N/A"}</span>
+                                {p.website ? (
+                                  <a href={p.website.startsWith("http") ? p.website : `https://${p.website}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline flex items-center gap-1 truncate">
+                                    {p.website} <ExternalLink className="w-3 h-3 shrink-0" />
+                                  </a>
+                                ) : (
+                                  <span>N/A</span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1002,6 +1079,160 @@ const People = () => {
                             </div>
                           </div>
                         </div>
+
+                        {/* Social & Digital Presence Section */}
+                        {(() => {
+                          const insta = p.instagram || p.social_links?.instagram || p.contact_info?.instagram || p.contact_preferences?.instagram;
+                          const linkedin = p.linkedin || p.social_links?.linkedin || p.contact_info?.linkedin || p.contact_preferences?.linkedin;
+                          const wa = p.whatsapp || p.social_links?.whatsapp || p.contact_info?.whatsapp;
+                          const tw = p.twitter || p.social_links?.twitter || p.social_links?.x || p.x || p.contact_info?.twitter;
+                          const gh = p.github || p.social_links?.github || p.contact_info?.github;
+                          const fb = p.facebook || p.social_links?.facebook || p.contact_info?.facebook;
+                          const yt = p.youtube || p.social_links?.youtube || p.contact_info?.youtube;
+
+                          const hasSocials = Boolean(insta || linkedin || wa || tw || gh || fb || yt);
+
+                          return (
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Social & Digital Profiles</h4>
+                              {hasSocials ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                                  {insta && (
+                                    <a
+                                      href={formatSocialUrl("instagram", insta)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-200 text-pink-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-pink-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <Instagram className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-pink-600 uppercase tracking-wider">Instagram</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">
+                                            @{String(insta).replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "")}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-pink-400 group-hover:text-pink-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+
+                                  {linkedin && (
+                                    <a
+                                      href={formatSocialUrl("linkedin", linkedin)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <Linkedin className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">LinkedIn</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">
+                                            {String(linkedin).replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//i, "").replace(/\/$/, "")}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-blue-400 group-hover:text-blue-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+
+                                  {wa && (
+                                    <a
+                                      href={formatSocialUrl("whatsapp", wa)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <MessageCircle className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">WhatsApp</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">
+                                            {String(wa).replace(/^https?:\/\/wa\.me\//i, "")}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-emerald-400 group-hover:text-emerald-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+
+                                  {tw && (
+                                    <a
+                                      href={formatSocialUrl("twitter", tw)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <Twitter className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Twitter / X</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">
+                                            @{String(tw).replace(/^@/, "").replace(/^https?:\/\/(www\.)?(twitter|x)\.com\//i, "").replace(/\/$/, "")}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+
+                                  {gh && (
+                                    <a
+                                      href={formatSocialUrl("github", gh)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <Github className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">GitHub</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">{String(gh)}</p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+
+                                  {fb && (
+                                    <a
+                                      href={formatSocialUrl("facebook", fb)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center justify-between p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 hover:shadow-sm transition-all group"
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                          <Facebook className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Facebook</p>
+                                          <p className="text-xs font-semibold text-slate-800 truncate">{String(fb)}</p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 shrink-0 ml-1" />
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-400 text-center">
+                                  No social media links linked by user.
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Skills / Interests / Topics */}
                         {(p.skills?.length > 0 || p.interests?.length > 0 || p.tags?.length > 0) && (

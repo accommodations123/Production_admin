@@ -16,7 +16,9 @@ function EventApproved() {
                 const response = await axios.get(`${BASE_URL}/events/admin/events/approved`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                setEvents(response.data.events || []);
+                const d = response.data;
+                const list = Array.isArray(d) ? d : (d?.events || d?.data || []);
+                setEvents(list);
             } catch (e) {
                 console.error(e);
             } finally {

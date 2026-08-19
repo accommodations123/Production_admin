@@ -329,7 +329,9 @@ const ManageListings = () => {
 
     const approveListing = async (listing) => {
         try {
-            await api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`);
+            await api.put(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() =>
+                api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`)
+            );
             setPending(p => p.filter(x => x.id !== listing.id));
             fetchApproved();
             showNotification("success", "Listing approved successfully");
@@ -342,7 +344,9 @@ const ManageListings = () => {
     const denyListing = async (reason) => {
         try {
             const listing = pending.find(l => l.id === denyTarget);
-            await api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason });
+            await api.put(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() =>
+                api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason })
+            );
             setPending(p => p.filter(x => x.id !== denyTarget));
             setDenied(d => [...d, { ...listing, status: "denied", reason }]);
             setDenyTarget(null);

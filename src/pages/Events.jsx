@@ -226,18 +226,18 @@ const Events = () => {
     try {
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
       const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-        axios.get(`${API_BASE}/events/admin/pending`, { headers }),
-        axios.get(`${API_BASE}/events/admin/events/approved`, { headers }),
-        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers })
+        axios.get(`${API_BASE}/events/admin/pending`, { headers }).catch(err => { console.error("Pending events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/approved`, { headers }).catch(err => { console.error("Approved events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers }).catch(err => { console.error("Rejected events error:", err); return { data: { events: [] } }; })
       ]);
 
-      const pendingData = pendingRes.data;
-      const approvedData = approvedRes.data;
-      const rejectedData = rejectedRes.data;
+      const pendingData = pendingRes.data || {};
+      const approvedData = approvedRes.data || {};
+      const rejectedData = rejectedRes.data || {};
 
-      const pendingEvents = Array.isArray(pendingData) ? pendingData : (Array.isArray(pendingData.events) ? pendingData.events : []);
-      const approvedEvents = Array.isArray(approvedData.events) ? approvedData.events : [];
-      const rejectedEvents = Array.isArray(rejectedData.events) ? rejectedData.events : [];
+      const pendingEvents = Array.isArray(pendingData) ? pendingData : (Array.isArray(pendingData.events) ? pendingData.events : (Array.isArray(pendingData.data) ? pendingData.data : []));
+      const approvedEvents = Array.isArray(approvedData) ? approvedData : (Array.isArray(approvedData.events) ? approvedData.events : (Array.isArray(approvedData.data) ? approvedData.data : []));
+      const rejectedEvents = Array.isArray(rejectedData) ? rejectedData : (Array.isArray(rejectedData.events) ? rejectedData.events : (Array.isArray(rejectedData.data) ? rejectedData.data : []));
 
       // Add status property if missing (API might not return it for approved/rejected endpoints)
       const formattedApproved = approvedEvents.map(e => ({ ...e, status: 'approved' }));
