@@ -3,7 +3,7 @@ import axios from "axios";
 
 const AdminContext = createContext(null);
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 export function AdminProvider({ children }) {
     const [admin, setAdmin] = useState(null);

@@ -29,7 +29,7 @@ import {
 } from "@heroicons/react/24/solid";
 import moment from "moment";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 // --- UTILITIES ---
 function cn(...classes) {

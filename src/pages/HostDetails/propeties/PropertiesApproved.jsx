@@ -23,7 +23,7 @@ const PropertyApproved = () => {
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    const BASE_URL = import.meta.env.VITE_API_URL || "http://35.153.223.230:5000";
+    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
     useEffect(() => {
         console.log("🔵 PropertyApproved component mounted - fetching approved properties...");
