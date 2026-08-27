@@ -87,7 +87,7 @@ function EventRejected() {
                                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">System Info</h4>
                                     <ul className="space-y-3 text-sm">
                                         <li><span className="text-gray-500 block text-xs">ID</span>{selectedEvent.id}</li>
-                                        <li><span className="text-gray-500 block text-xs">Rejected On</span>{new Date(selectedEvent.updatedAt).toLocaleDateString()}</li>
+                                        <li><span className="text-gray-500 block text-xs">Rejected On</span>{(selectedEvent.updated_at || selectedEvent.updatedAt || selectedEvent.created_at) ? new Date(selectedEvent.updated_at || selectedEvent.updatedAt || selectedEvent.created_at).toLocaleDateString() : 'N/A'}</li>
                                     </ul>
                                 </div>
                             </div>
