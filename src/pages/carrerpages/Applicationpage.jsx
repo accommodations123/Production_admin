@@ -335,7 +335,7 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
             const { data: rawData, error: fetchErr } = await supabase
                 .from("job_applications")
                 .select("*, jobs(*)")
-                .or(`id.eq.${id},_id.eq.${id}`)
+                .eq("id", id)
                 .maybeSingle();
 
             if (fetchErr || !rawData) {
@@ -373,10 +373,12 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         setShowApplicationModal(false);
 
         try {
-            await supabase
+            const { error } = await supabase
                 .from("job_applications")
                 .update({ status: newStatus, updated_at: new Date().toISOString() })
-                .or(`id.eq.${appId},_id.eq.${appId}`);
+                .eq("id", appId);
+
+            if (error) throw error;
 
             showNotification(`Application marked as ${newStatus}`);
         } catch (err) {

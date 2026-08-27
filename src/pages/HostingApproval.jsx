@@ -361,15 +361,13 @@ const HostingApproval = () => {
       const { error: updateErr } = await supabase
         .from("properties")
         .update({ status: "approved", updated_at: new Date().toISOString() })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
 
-      if (updateErr) {
-        console.warn("Supabase approve update note:", updateErr);
-      }
+      if (updateErr) throw updateErr;
 
       // Update local state
       setProperties(prev => prev.map(p =>
-        p._id === String(id) ? { ...p, status: 'approved' } : p
+        (p._id === String(id) || p.id === String(id)) ? { ...p, status: 'approved' } : p
       ));
 
       setStats(prev => ({
@@ -379,7 +377,7 @@ const HostingApproval = () => {
       }));
 
       // Show success notification
-      const property = properties.find(p => p._id === String(id));
+      const property = properties.find(p => p._id === String(id) || p.id === String(id));
       showToast(`"${property?.title || 'Property'}" has been approved`, 'success');
 
     } catch (err) {
@@ -407,15 +405,13 @@ const HostingApproval = () => {
           rejection_reason: rejectionReason.trim(),
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${currentPropertyId},_id.eq.${currentPropertyId}`);
+        .eq("id", currentPropertyId);
 
-      if (updateErr) {
-        console.warn("Supabase reject update note:", updateErr);
-      }
+      if (updateErr) throw updateErr;
 
       // Update local state
       setProperties(prev => prev.map(p =>
-        p._id === String(currentPropertyId) ? {
+        (p._id === String(currentPropertyId) || p.id === String(currentPropertyId)) ? {
           ...p,
           status: 'rejected',
           rejectionReason: rejectionReason.trim()
@@ -429,7 +425,7 @@ const HostingApproval = () => {
       }));
 
       // Show success notification
-      const property = properties.find(p => p._id === String(currentPropertyId));
+      const property = properties.find(p => p._id === String(currentPropertyId) || p.id === String(currentPropertyId));
       showToast(`"${property?.title || 'Property'}" has been rejected`, 'error');
 
       // Close modal
@@ -449,10 +445,12 @@ const HostingApproval = () => {
     if (!window.confirm("Are you sure you want to delete this property? This action cannot be undone.")) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from("properties")
         .delete()
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       setProperties(prev => prev.filter(p => p._id !== String(id)));
       setStats(prev => ({

@@ -138,10 +138,12 @@ const PostStayRequests = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`approve-${id}`);
-      await supabase
+      const { error } = await supabase
         .from("stay_requests")
         .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       showToast("Stay request approved successfully", "success");
       fetchPendingRequests();
@@ -161,14 +163,16 @@ const PostStayRequests = () => {
   const handleReject = async (id) => {
     try {
       setActionLoading(`reject-${id}`);
-      await supabase
+      const { error } = await supabase
         .from("stay_requests")
         .update({
           status: "rejected",
           rejection_reason: rejectReason || "Request does not meet quality/policy guidelines",
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       showToast("Stay request rejected", "success");
       setRejectModalId(null);

@@ -315,14 +315,16 @@ const Events = () => {
   // --- ACTIONS ---
   const handleApprove = async (id) => {
     try {
-      await supabase
+      const { error } = await supabase
         .from("events")
         .update({ status: "approved", updated_at: new Date().toISOString() })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       setEvents(prevEvents =>
         prevEvents.map(event =>
-          event.id === id ? { ...event, status: 'approved' } : event
+          (event.id === id || event._id === id) ? { ...event, status: 'approved' } : event
         )
       );
       setRefreshKey(prev => prev + 1);
@@ -340,20 +342,22 @@ const Events = () => {
     if (!rejectionReason.trim() || !currentEventId) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from("events")
         .update({
           status: "rejected",
           rejection_reason: rejectionReason,
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${currentEventId},_id.eq.${currentEventId}`);
+        .eq("id", currentEventId);
+
+      if (error) throw error;
 
       setRejectModalOpen(false);
       setRejectionReason("");
       setEvents(prevEvents =>
         prevEvents.map(event =>
-          event.id === currentEventId ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
+          (event.id === currentEventId || event._id === currentEventId) ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
         )
       );
       setRefreshKey(prev => prev + 1);
@@ -366,12 +370,14 @@ const Events = () => {
     if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from("events")
         .delete()
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
 
-      setEvents(prevEvents => prevEvents.filter(event => event.id !== id));
+      if (error) throw error;
+
+      setEvents(prevEvents => prevEvents.filter(event => (event.id !== id && event._id !== id)));
       setRefreshKey(prev => prev + 1);
     } catch (err) {
       console.error("Deletion error:", err);

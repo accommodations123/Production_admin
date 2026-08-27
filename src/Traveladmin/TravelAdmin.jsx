@@ -144,7 +144,8 @@ export default function TravelAdmin() {
       open: true,
       action: async () => {
         try {
-          await supabase.from("travel_trips").update({ status: "approved" }).or(`id.eq.${tripId},_id.eq.${tripId}`);
+          const { error } = await supabase.from("travel_trips").update({ status: "approved" }).eq("id", tripId);
+          if (error) throw error;
           setSnackbar({ open: true, message: "Trip approved successfully", severity: "success" });
           fetchAll();
         } catch (err) {
@@ -163,7 +164,8 @@ export default function TravelAdmin() {
       open: true,
       action: async () => {
         try {
-          await supabase.from("travel_trips").update({ status: "rejected" }).or(`id.eq.${tripId},_id.eq.${tripId}`);
+          const { error } = await supabase.from("travel_trips").update({ status: "rejected" }).eq("id", tripId);
+          if (error) throw error;
           setSnackbar({ open: true, message: "Trip rejected successfully", severity: "success" });
           fetchAll();
         } catch (err) {
@@ -182,7 +184,8 @@ export default function TravelAdmin() {
       open: true,
       action: async () => {
         try {
-          await supabase.from("travel_trips").update({ status: "cancelled" }).or(`id.eq.${tripId},_id.eq.${tripId}`);
+          const { error } = await supabase.from("travel_trips").update({ status: "cancelled" }).eq("id", tripId);
+          if (error) throw error;
           setSnackbar({ open: true, message: "Trip cancelled successfully", severity: "success" });
           fetchAll();
         } catch (err) {
@@ -201,7 +204,8 @@ export default function TravelAdmin() {
       open: true,
       action: async () => {
         try {
-          await supabase.from("profiles").update({ is_blocked: true, status: "blocked" }).or(`id.eq.${hostId},_id.eq.${hostId}`);
+          const { error } = await supabase.from("profiles").update({ is_blocked: true, status: "blocked" }).eq("id", hostId);
+          if (error) throw error;
           setSnackbar({ open: true, message: "Host blocked", severity: "success" });
           fetchAll();
         } catch (err) {

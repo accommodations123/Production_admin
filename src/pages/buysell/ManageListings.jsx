@@ -330,10 +330,12 @@ const ManageListings = () => {
 
     const approveListing = async (listing) => {
         try {
-            await supabase
+            const { error } = await supabase
                 .from("buy_sell")
                 .update({ status: "approved", updated_at: new Date().toISOString() })
-                .or(`id.eq.${listing.id},_id.eq.${listing.id}`);
+                .eq("id", listing.id);
+
+            if (error) throw error;
 
             setPending(p => p.filter(x => x.id !== listing.id && x._id !== listing.id));
             fetchApproved();
@@ -347,14 +349,16 @@ const ManageListings = () => {
     const denyListing = async (reason) => {
         try {
             const listing = pending.find(l => l.id === denyTarget || l._id === denyTarget);
-            await supabase
+            const { error } = await supabase
                 .from("buy_sell")
                 .update({
                     status: "rejected",
                     rejection_reason: reason,
                     updated_at: new Date().toISOString()
                 })
-                .or(`id.eq.${denyTarget},_id.eq.${denyTarget}`);
+                .eq("id", denyTarget);
+
+            if (error) throw error;
 
             setPending(p => p.filter(x => x.id !== denyTarget && x._id !== denyTarget));
             setDenied(d => [...d, { ...listing, status: "denied", reason }]);

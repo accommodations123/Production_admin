@@ -194,9 +194,10 @@ const People = () => {
       const { data, error: fetchErr } = await supabase
         .from("profiles")
         .select("*")
-        .or(`id.eq.${profileId},_id.eq.${profileId}`)
+        .eq("id", profileId)
         .maybeSingle();
 
+      if (fetchErr) throw fetchErr;
       setProfileDetails(data || profile);
     } catch (err) {
       console.error("Fetch profile details error:", err);
@@ -210,10 +211,12 @@ const People = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`${id}-approve`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       showToast("Profile approved successfully", "success");
       fetchProfiles();
@@ -234,14 +237,16 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-reject`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({
           status: "rejected",
           rejection_reason: reason.trim() || "Rejected by administrator",
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+        .eq("id", profileId);
+
+      if (error) throw error;
 
       showToast("Profile rejected successfully", "success");
       setRejectDialog({ show: false, profileId: null, name: "", reason: "" });
@@ -263,7 +268,7 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-block`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({
           status: "blocked",
@@ -271,7 +276,9 @@ const People = () => {
           block_reason: reason.trim() || "Blocked by administrator",
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+        .eq("id", profileId);
+
+      if (error) throw error;
 
       showToast("Profile blocked successfully", "success");
       setBlockDialog({ show: false, profileId: null, name: "", reason: "" });
@@ -291,7 +298,7 @@ const People = () => {
   const handleUnblock = async (id) => {
     try {
       setActionLoading(`${id}-unblock`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({
           status: "approved",
@@ -299,7 +306,9 @@ const People = () => {
           block_reason: null,
           updated_at: new Date().toISOString()
         })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       showToast("Profile unblocked and restored to approved", "success");
       fetchProfiles();
@@ -318,10 +327,12 @@ const People = () => {
   const handleFeatureToggle = async (id, currentFeatured) => {
     try {
       setActionLoading(`${id}-feature`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({ is_featured: !currentFeatured, updated_at: new Date().toISOString() })
-        .or(`id.eq.${id},_id.eq.${id}`);
+        .eq("id", id);
+
+      if (error) throw error;
 
       showToast(!currentFeatured ? "Profile featured" : "Profile unfeatured", "success");
       fetchProfiles();
@@ -342,10 +353,12 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-delete`);
-      await supabase
+      const { error } = await supabase
         .from("profiles")
         .delete()
-        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+        .eq("id", profileId);
+
+      if (error) throw error;
 
       showToast("Profile permanently deleted", "success");
       setDeleteDialog({ show: false, profileId: null, name: "" });
@@ -365,10 +378,12 @@ const People = () => {
   const handleResolveReport = async (reportId) => {
     try {
       setActionLoading(`report-${reportId}`);
-      await supabase
+      const { error } = await supabase
         .from("people_reports")
         .update({ resolved: true, status: "resolved", updated_at: new Date().toISOString() })
-        .or(`id.eq.${reportId},_id.eq.${reportId}`);
+        .eq("id", reportId);
+
+      if (error) throw error;
 
       showToast("Report resolved successfully", "success");
       fetchReports();

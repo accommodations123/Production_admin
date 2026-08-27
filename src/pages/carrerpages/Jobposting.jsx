@@ -248,7 +248,7 @@ const JobsTab = () => {
                 const { data, error } = await supabase
                     .from("jobs")
                     .update(payload)
-                    .or(`id.eq.${editingJobId},_id.eq.${editingJobId}`)
+                    .eq("id", editingJobId)
                     .select()
                     .single();
                 if (error) throw error;
@@ -334,10 +334,12 @@ const JobsTab = () => {
         }
 
         try {
-            await supabase
+            const { error } = await supabase
                 .from("jobs")
                 .update({ status, updated_at: new Date().toISOString() })
-                .or(`id.eq.${jobId},_id.eq.${jobId}`);
+                .eq("id", jobId);
+
+            if (error) throw error;
 
             setJobsData((prev) =>
                 prev.map((job) =>

@@ -176,9 +176,9 @@ function HostPending() {
                     .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() });
 
                 if (hostId && selectedHost.email) {
-                    propQuery = propQuery.or(`host_id.eq.${hostId},user_id.eq.${hostId},email.eq.${selectedHost.email}`);
+                    propQuery = propQuery.or(`host_id.eq.${hostId},email.eq.${selectedHost.email}`);
                 } else if (hostId) {
-                    propQuery = propQuery.or(`host_id.eq.${hostId},user_id.eq.${hostId}`);
+                    propQuery = propQuery.eq("host_id", hostId);
                 } else {
                     propQuery = propQuery.eq("email", selectedHost.email);
                 }
