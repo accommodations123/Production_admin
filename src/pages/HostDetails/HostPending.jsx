@@ -93,7 +93,7 @@ function HostPending() {
             const profilesData = Array.isArray(profilesRes.data) ? profilesRes.data : [];
             const propsData = Array.isArray(propsRes.data) ? propsRes.data : [];
 
-            // All accounts waiting for admin review (not approved, not rejected, not blocked, not admins)
+            // Only actual host applicants (has host role, submitted properties, or host proof)
             const pendingProfiles = profilesData.filter(p => {
                 const isAdmin = p.role === "super_admin" || p.role === "admin";
                 if (isAdmin) return false;
@@ -102,7 +102,18 @@ function HostPending() {
                 const isRejected = p.status === "rejected";
                 const isBlocked = p.status === "blocked" || p.is_blocked === true;
 
-                return !isApproved && !isRejected && !isBlocked;
+                if (isApproved || isRejected || isBlocked) return false;
+
+                // Match properties for this user
+                const userProperties = propsData.filter(prop => 
+                    (p.id && (prop.host_id === p.id || prop.user_id === p.id || prop.owner_id === p.id)) ||
+                    (p.email && (prop.email?.toLowerCase() === p.email.toLowerCase() || prop.owner_email?.toLowerCase() === p.email.toLowerCase()))
+                );
+                const hasProperties = userProperties.length > 0;
+                const isHostRole = p.role === "host" || p.role === "pending_host" || p.is_host === true;
+                const hasHostDocs = !!(p.id_proof || p.document_url);
+
+                return isHostRole || hasProperties || hasHostDocs;
             });
 
             const formatted = pendingProfiles.map(h => normalizeHost(h, propsData));

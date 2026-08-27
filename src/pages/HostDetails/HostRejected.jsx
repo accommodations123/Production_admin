@@ -92,8 +92,20 @@ function HostRejected() {
             const profilesData = Array.isArray(profilesRes.data) ? profilesRes.data : [];
             const propsData = Array.isArray(propsRes.data) ? propsRes.data : [];
 
-            // Rejected profiles
-            const rejectedProfiles = profilesData.filter(p => p.status === "rejected");
+            // Rejected hosts only
+            const rejectedProfiles = profilesData.filter(p => {
+                if (p.status !== "rejected") return false;
+
+                const userProperties = propsData.filter(prop => 
+                    (p.id && (prop.host_id === p.id || prop.user_id === p.id || prop.owner_id === p.id)) ||
+                    (p.email && (prop.email?.toLowerCase() === p.email.toLowerCase() || prop.owner_email?.toLowerCase() === p.email.toLowerCase()))
+                );
+                const hasProperties = userProperties.length > 0;
+                const isHostRole = p.role === "host" || p.is_host === true;
+                const hasHostDocs = !!(p.id_proof || p.document_url);
+
+                return isHostRole || hasProperties || hasHostDocs;
+            });
             const formatted = rejectedProfiles.map(h => normalizeHost(h, propsData));
 
             setHosts(formatted);
