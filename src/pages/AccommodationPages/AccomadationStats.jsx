@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import {
     TrendingUp, Globe, Users, CheckCircle, Clock, XCircle,
     BarChart3, Activity, RefreshCw, AlertCircle
 } from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 
 const AccomadationStats = () => {
-    const BASE_URL = `${import.meta.env.VITE_API_URL || "https://api.nextkinlife.live"}/adminproperty`;
-
     const [statusStats, setStatusStats] = useState(null);
     const [countryStats, setCountryStats] = useState([]);
     const [hostStats, setHostStats] = useState([]);
@@ -21,53 +19,46 @@ const AccomadationStats = () => {
         if (!refreshing) setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem("admin-auth");
-
-        if (!token) {
-            setError("Token missing – Login again");
-            setLoading(false);
-            return;
-        }
-
         try {
-            const headers = {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-            };
+            const { data: properties, error: propErr } = await supabase
+                .from("properties")
+                .select("*");
 
-            // -------------------- 1. STATUS API --------------------
-            const statusRes = await axios.get(`${BASE_URL}/stats/by-status`, { headers });
-            const statusJson = statusRes.data;
+            if (propErr) {
+                console.warn("Supabase fetch properties note:", propErr);
+            }
 
-            // Convert your API → UI format
-            const formattedStatus = {
-                approved: statusJson.stats?.find(s => s.status === "approved")?.total || 0,
-                pending: statusJson.stats?.find(s => s.status === "pending")?.total || 0,
-                rejected: statusJson.stats?.find(s => s.status === "rejected")?.total || 0,
-            };
+            const props = Array.isArray(properties) ? properties : [];
+            const approved = props.filter(p => p.status === "approved").length;
+            const pending = props.filter(p => p.status === "pending" || !p.status).length;
+            const rejected = props.filter(p => p.status === "rejected").length;
 
-            setStatusStats(formattedStatus);
+            setStatusStats({ approved, pending, rejected });
 
-            // -------------------- 2. COUNTRY API --------------------
-            const countryRes = await axios.get(`${BASE_URL}/stats/by-country`, { headers });
-            const countryJson = countryRes.data;
-            setCountryStats(countryJson.stats || []);
+            // Country stats
+            const cMap = {};
+            props.forEach(p => {
+                const c = p.country || p.location?.country || "Unknown";
+                cMap[c] = (cMap[c] || 0) + 1;
+            });
+            setCountryStats(Object.keys(cMap).map(c => ({ country: c, total: cMap[c] })));
 
-            // -------------------- 3. HOST API --------------------
-            const hostRes = await axios.get(`${BASE_URL}/stats/by-hosts`, { headers });
-            const hostJson = hostRes.data;
-            setHostStats(hostJson.stats || []);
+            // Host stats
+            const hMap = {};
+            props.forEach(p => {
+                const h = p.hostName || p.host_name || p.user_name || p.user_id || "Unknown Host";
+                hMap[h] = (hMap[h] || 0) + 1;
+            });
+            setHostStats(Object.keys(hMap).map(h => ({ host: h, total: hMap[h] })));
 
-            // Set last updated time
-            setLastUpdated(new Date());
-
+            setLastUpdated(new Date().toLocaleTimeString());
         } catch (err) {
-            console.error("API ERROR:", err);
-            setError("Unable to load dashboard data");
+            console.error("Dashboard error:", err);
+            setError(err.message || "Failed to load dashboard data");
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-
-        setLoading(false);
-        setRefreshing(false);
     };
 
     useEffect(() => {

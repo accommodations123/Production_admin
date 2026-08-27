@@ -24,9 +24,7 @@ import {
   Check,
   Ban
 } from "lucide-react";
-import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from "../lib/supabaseClient";
 
 const PostStayRequests = () => {
   const [activeTab, setActiveTab] = useState("pending"); // "pending" | "reports"
@@ -65,47 +63,70 @@ const PostStayRequests = () => {
     }, 4000);
   };
 
-  /* ═══════ FETCH PENDING STAY REQUESTS ═══════ */
+  /* ═══════ FETCH PENDING STAY REQUESTS VIA SUPABASE ═══════ */
   const fetchPendingRequests = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/pending`, getHeaders());
-      const data = res.data?.requests || res.data?.data || res.data?.stayRequests || res.data || [];
+      const { data, error: fetchErr } = await supabase
+        .from("stay_requests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (fetchErr) {
+        console.warn("Supabase fetch stay requests note:", fetchErr);
+      }
       setRequests(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch stay requests error:", err);
-      showToast(err.response?.data?.message || "Failed to load stay requests", "error");
+      showToast(err.message || "Failed to load stay requests", "error");
     } finally {
       setLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   /* ═══════ FETCH STATISTICS ═══════ */
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/statistics`, getHeaders());
-      setStats(res.data?.stats || res.data?.data || res.data?.statistics || res.data || null);
+      const { count: pending } = await supabase.from("stay_requests").select("*", { count: "exact", head: true }).eq("status", "pending");
+      const { count: approved } = await supabase.from("stay_requests").select("*", { count: "exact", head: true }).eq("status", "approved");
+      const { count: rejected } = await supabase.from("stay_requests").select("*", { count: "exact", head: true }).eq("status", "rejected");
+      const { count: total } = await supabase.from("stay_requests").select("*", { count: "exact", head: true });
+
+      setStats({
+        pendingRequests: pending || 0,
+        approvedRequests: approved || 0,
+        rejectedRequests: rejected || 0,
+        totalRequests: total || 0,
+      });
     } catch (err) {
       console.error("Fetch stay request stats error:", err);
     } finally {
       setStatsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   /* ═══════ FETCH REPORTS ═══════ */
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/reports`, getHeaders());
-      const data = res.data?.reports || res.data?.data || res.data || [];
-      setReports(Array.isArray(data) ? data : []);
+      const { data, error: fetchErr } = await supabase
+        .from("stay_request_reports")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (fetchErr) {
+        setReports([]);
+      } else {
+        setReports(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error("Fetch stay request reports error:", err);
+      setReports([]);
     } finally {
       setReportsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   useEffect(() => {
     fetchPendingRequests();
@@ -117,16 +138,20 @@ const PostStayRequests = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`approve-${id}`);
-      await axios.put(`${BASE_URL}/admin/stay-request/approve/${id}`, {}, getHeaders());
+      await supabase
+        .from("stay_requests")
+        .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
       showToast("Stay request approved successfully", "success");
       fetchPendingRequests();
       fetchStats();
-      if (showModal && selectedRequest?._id === id) {
+      if (showModal && (selectedRequest?._id === id || selectedRequest?.id === id)) {
         setShowModal(false);
       }
     } catch (err) {
       console.error("Approve error:", err);
-      showToast(err.response?.data?.message || "Failed to approve request", "error");
+      showToast(err.message || "Failed to approve request", "error");
     } finally {
       setActionLoading(null);
     }
@@ -136,22 +161,26 @@ const PostStayRequests = () => {
   const handleReject = async (id) => {
     try {
       setActionLoading(`reject-${id}`);
-      await axios.put(
-        `${BASE_URL}/admin/stay-request/reject/${id}`,
-        { reason: rejectReason || "Request does not meet quality/policy guidelines" },
-        getHeaders()
-      );
+      await supabase
+        .from("stay_requests")
+        .update({
+          status: "rejected",
+          rejection_reason: rejectReason || "Request does not meet quality/policy guidelines",
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
       showToast("Stay request rejected", "success");
       setRejectModalId(null);
       setRejectReason("");
       fetchPendingRequests();
       fetchStats();
-      if (showModal && selectedRequest?._id === id) {
+      if (showModal && (selectedRequest?._id === id || selectedRequest?.id === id)) {
         setShowModal(false);
       }
     } catch (err) {
       console.error("Reject error:", err);
-      showToast(err.response?.data?.message || "Failed to reject request", "error");
+      showToast(err.message || "Failed to reject request", "error");
     } finally {
       setActionLoading(null);
     }

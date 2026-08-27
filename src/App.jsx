@@ -38,6 +38,7 @@ function RoleGuard({ roles, children }) {
   const currentRole = admin?.role;
 
   if (!roles || roles.length === 0) return children;
+  if (currentRole === "super_admin") return children;
 
   if (!currentRole || !roles.includes(currentRole)) {
     // Redirect unauthorized users to their default page
@@ -67,7 +68,7 @@ function AppContent() {
     : "/login";
 
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
 
         {/* DEFAULT ROUTE */}

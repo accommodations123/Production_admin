@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from '../../lib/supabaseClient';
 
 function HostRejected() {
     const [hosts, setHosts] = useState([]);
@@ -12,13 +10,24 @@ function HostRejected() {
         const fetchHosts = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/host/admin/hosts/rejected`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setHosts(response.data.hosts || []);
+                const { data, error } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("status", "rejected")
+                    .order("created_at", { ascending: false });
+
+                if (error) {
+                    console.warn("Supabase fetch rejected hosts note:", error);
+                }
+                const formatted = (Array.isArray(data) ? data : []).map(h => ({
+                    ...h,
+                    full_name: h.full_name || `${h.firstName || ''} ${h.lastName || ''}`.trim() || h.name || 'Host',
+                    email: h.email || ''
+                }));
+                setHosts(formatted);
             } catch (err) {
                 console.error(err);
+                setHosts([]);
             } finally {
                 setLoading(false);
             }

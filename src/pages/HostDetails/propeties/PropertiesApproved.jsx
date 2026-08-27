@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
     HomeIcon,
     MapPinIcon,
@@ -16,6 +15,7 @@ import {
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { CheckBadgeIcon as CheckBadgeSolid } from '@heroicons/react/24/solid';
+import { supabase } from '../../../lib/supabaseClient';
 
 const PropertyApproved = () => {
     const [properties, setProperties] = useState([]);
@@ -23,32 +23,19 @@ const PropertyApproved = () => {
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
     useEffect(() => {
-        console.log("🔵 PropertyApproved component mounted - fetching approved properties...");
-
         const fetchApproved = async () => {
-            console.log("🔵 Calling API:", `${BASE_URL}/adminproperty/admin/properties/approved`);
             try {
-                const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/adminproperty/admin/properties/approved`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const { data, error } = await supabase
+                    .from("properties")
+                    .select("*")
+                    .eq("status", "approved")
+                    .order("created_at", { ascending: false });
 
-                const data = response.data;
-
-                if (Array.isArray(data)) {
-                    setProperties(data);
-                } else if (data && Array.isArray(data.data)) {
-                    setProperties(data.data);
-                } else if (data && Array.isArray(data.properties)) {
-                    setProperties(data.properties);
-                } else {
-                    console.error("Unexpected API Data Format:", data);
-                    setProperties([]);
+                if (error) {
+                    console.warn("Supabase fetch approved properties note:", error);
                 }
-
+                setProperties(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error("Error fetching approved properties:", err);
                 setProperties([]);

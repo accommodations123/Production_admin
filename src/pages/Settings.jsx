@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
     User, Lock, Bell, Globe, Eye, EyeOff, Save, CheckCircle,
     AlertTriangle, X, Shield, Mail, Clock, Sun, Moon, Loader2,
     Settings as SettingsIcon, ChevronRight,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
-
-const API_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from '../lib/supabaseClient';
 
 
 const TABS = [
@@ -125,21 +123,16 @@ function SecurityTab({ showToast }) {
         if (newPass !== confirmPass) { setError('Passwords do not match'); return; }
         setSaving(true);
         try {
-            const token = localStorage.getItem('admin-auth');
-            const res = await axios.put(`${API_URL}/admin/change-password`, {
-                current_password: currentPass,
-                new_password: newPass
-            }, {
-                withCredentials: true,
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(token && { Authorization: `Bearer ${token}` })
-                }
+            const { error: updateErr } = await supabase.auth.updateUser({
+                password: newPass
             });
+
+            if (updateErr) throw updateErr;
+
             showToast('Password changed successfully', 'success');
             setCurrentPass(''); setNewPass(''); setConfirmPass('');
         } catch (err) {
-            setError(err.response?.data?.message || 'Network error. Please try again.');
+            setError(err.message || 'Failed to update password. Please try again.');
         }
         setSaving(false);
     };

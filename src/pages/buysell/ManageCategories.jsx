@@ -1,18 +1,6 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { Package, TrendingUp } from "lucide-react";
-
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
-
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("admin-auth");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+import { supabase } from "../../lib/supabaseClient";
 
 /* ==============================
    COMPONENT
@@ -24,14 +12,11 @@ const ManageCategories = () => {
     const fetchCategories = async () => {
         try {
             setLoading(true);
-            const [pendingRes, approvedRes] = await Promise.all([
-                api.get("/buy-sell/admin/buy-sell/pending"),
-                api.get("/buy-sell/get"),
-            ]);
+            const { data } = await supabase
+                .from("buy_sell")
+                .select("*");
 
-            const pending = pendingRes.data?.listings || [];
-            const approved = approvedRes.data?.listings || approvedRes.data || [];
-            const allListings = [...pending, ...approved];
+            const allListings = Array.isArray(data) ? data : [];
 
             const categoryMap = {};
             allListings.forEach((item) => {

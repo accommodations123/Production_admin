@@ -16,14 +16,14 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon, HeartIcon as HeartSolidIcon } from "@heroicons/react/24/solid";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://dmhxnuxlodsshdkunngb.supabase.co";
 
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null;
-  const normalizedPath = imagePath.replace(/\\/g, '/');
+  const normalizedPath = String(imagePath).replace(/\\/g, '/');
   if (normalizedPath.startsWith('http')) return normalizedPath;
   const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-  return `${API_BASE}/${cleanPath}`;
+  return `${SUPABASE_URL}/storage/v1/object/public/${cleanPath}`;
 };
 
 const VIEW_MODES = { GRID: 'grid', LIST: 'list', MAP: 'map' };

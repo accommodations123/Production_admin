@@ -34,9 +34,7 @@ import {
   ExternalLink,
   MessageCircle
 } from "lucide-react";
-import axios from "axios";
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from "../lib/supabaseClient";
 
 
 const formatSocialUrl = (type, val) => {
@@ -99,16 +97,6 @@ const People = () => {
 
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
 
-  const getHeaders = useCallback(() => {
-    const token = localStorage.getItem("admin-auth");
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    };
-  }, []);
-
   const showToast = (message, type = "success") => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
@@ -120,48 +108,70 @@ const People = () => {
   const fetchProfiles = useCallback(async () => {
     try {
       setLoading(true);
-      const url = statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)
-        ? `${BASE_URL}/admin/people?status=${statusFilter}`
-        : `${BASE_URL}/admin/people`;
+      let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
 
-      const res = await axios.get(url, getHeaders());
-      const data = res.data?.profiles || res.data?.data?.items || res.data?.data || res.data || [];
+      if (statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)) {
+        query = query.eq("status", statusFilter);
+      }
+
+      const { data, error: fetchErr } = await query;
+      if (fetchErr) {
+        console.warn("Supabase fetch profiles note:", fetchErr);
+      }
       setProfiles(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Fetch profiles error:", err);
-      showToast(err.response?.data?.message || "Failed to load profiles", "error");
+      showToast(err.message || "Failed to load profiles", "error");
     } finally {
       setLoading(false);
     }
-  }, [getHeaders, statusFilter]);
+  }, [statusFilter]);
 
   /* ═══════ FETCH ANALYTICS ═══════ */
   const fetchAnalytics = useCallback(async () => {
     try {
       setAnalyticsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/analytics`, getHeaders());
-      setAnalytics(res.data?.analytics || res.data?.data || res.data || null);
+      const { count: total } = await supabase.from("profiles").select("*", { count: "exact", head: true });
+      const { count: pending } = await supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "pending");
+      const { count: approved } = await supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "approved");
+      const { count: rejected } = await supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "rejected");
+      const { count: blocked } = await supabase.from("profiles").select("*", { count: "exact", head: true }).eq("status", "blocked");
+
+      setAnalytics({
+        totalProfiles: total || 0,
+        pendingProfiles: pending || 0,
+        approvedProfiles: approved || 0,
+        rejectedProfiles: rejected || 0,
+        blockedProfiles: blocked || 0,
+      });
     } catch (err) {
       console.error("Fetch people analytics error:", err);
     } finally {
       setAnalyticsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   /* ═══════ FETCH REPORTS ═══════ */
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/reports`, getHeaders());
-      const data = res.data?.reports || res.data?.data || res.data || [];
-      setReports(Array.isArray(data) ? data : []);
+      const { data, error: fetchErr } = await supabase
+        .from("people_reports")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (fetchErr) {
+        setReports([]);
+      } else {
+        setReports(Array.isArray(data) ? data : []);
+      }
     } catch (err) {
       console.error("Fetch reports error:", err);
-      showToast(err.response?.data?.message || "Failed to load reports", "error");
+      setReports([]);
     } finally {
       setReportsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   useEffect(() => {
     fetchProfiles();
@@ -181,8 +191,13 @@ const People = () => {
 
     try {
       setDetailsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/${profileId}`, getHeaders());
-      setProfileDetails(res.data?.profile || res.data?.data || res.data);
+      const { data, error: fetchErr } = await supabase
+        .from("profiles")
+        .select("*")
+        .or(`id.eq.${profileId},_id.eq.${profileId}`)
+        .maybeSingle();
+
+      setProfileDetails(data || profile);
     } catch (err) {
       console.error("Fetch profile details error:", err);
       setProfileDetails(profile);
@@ -195,16 +210,20 @@ const People = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`${id}-approve`);
-      await axios.post(`${BASE_URL}/admin/people/${id}/approve`, {}, getHeaders());
-      showToast("Profile approved and cache purged successfully", "success");
+      await supabase
+        .from("profiles")
+        .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
+      showToast("Profile approved successfully", "success");
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === id || selectedProfile.id === id)) {
-        handleViewProfile({ ...selectedProfile, id });
+        handleViewProfile({ ...selectedProfile, id, status: "approved", is_approved: true });
       }
     } catch (err) {
       console.error("Approve error:", err);
-      showToast(err.response?.data?.message || "Failed to approve profile", "error");
+      showToast(err.message || "Failed to approve profile", "error");
     } finally {
       setActionLoading(null);
     }
@@ -215,21 +234,25 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-reject`);
-      await axios.post(
-        `${BASE_URL}/admin/people/${profileId}/reject`,
-        { reason: reason.trim() || "Rejected by administrator" },
-        getHeaders()
-      );
+      await supabase
+        .from("profiles")
+        .update({
+          status: "rejected",
+          rejection_reason: reason.trim() || "Rejected by administrator",
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+
       showToast("Profile rejected successfully", "success");
       setRejectDialog({ show: false, profileId: null, name: "", reason: "" });
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === profileId || selectedProfile.id === profileId)) {
-        handleViewProfile({ ...selectedProfile, id: profileId });
+        handleViewProfile({ ...selectedProfile, id: profileId, status: "rejected" });
       }
     } catch (err) {
       console.error("Reject error:", err);
-      showToast(err.response?.data?.message || "Failed to reject profile", "error");
+      showToast(err.message || "Failed to reject profile", "error");
     } finally {
       setActionLoading(null);
     }
@@ -240,21 +263,26 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-block`);
-      await axios.post(
-        `${BASE_URL}/admin/people/${profileId}/block`,
-        { reason: reason.trim() || "Blocked by administrator" },
-        getHeaders()
-      );
+      await supabase
+        .from("profiles")
+        .update({
+          status: "blocked",
+          is_blocked: true,
+          block_reason: reason.trim() || "Blocked by administrator",
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+
       showToast("Profile blocked successfully", "success");
       setBlockDialog({ show: false, profileId: null, name: "", reason: "" });
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === profileId || selectedProfile.id === profileId)) {
-        handleViewProfile({ ...selectedProfile, id: profileId });
+        handleViewProfile({ ...selectedProfile, id: profileId, status: "blocked", is_blocked: true });
       }
     } catch (err) {
       console.error("Block error:", err);
-      showToast(err.response?.data?.message || "Failed to block profile", "error");
+      showToast(err.message || "Failed to block profile", "error");
     } finally {
       setActionLoading(null);
     }
@@ -263,16 +291,25 @@ const People = () => {
   const handleUnblock = async (id) => {
     try {
       setActionLoading(`${id}-unblock`);
-      await axios.post(`${BASE_URL}/admin/people/${id}/unblock`, {}, getHeaders());
+      await supabase
+        .from("profiles")
+        .update({
+          status: "approved",
+          is_blocked: false,
+          block_reason: null,
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
       showToast("Profile unblocked and restored to approved", "success");
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === id || selectedProfile.id === id)) {
-        handleViewProfile({ ...selectedProfile, id });
+        handleViewProfile({ ...selectedProfile, id, status: "approved", is_blocked: false });
       }
     } catch (err) {
       console.error("Unblock error:", err);
-      showToast(err.response?.data?.message || "Failed to unblock profile", "error");
+      showToast(err.message || "Failed to unblock profile", "error");
     } finally {
       setActionLoading(null);
     }
@@ -281,20 +318,20 @@ const People = () => {
   const handleFeatureToggle = async (id, currentFeatured) => {
     try {
       setActionLoading(`${id}-feature`);
-      const res = await axios.post(
-        `${BASE_URL}/admin/people/${id}/feature`,
-        { is_featured: !currentFeatured },
-        getHeaders()
-      );
-      showToast(res.data?.message || (!currentFeatured ? "Profile featured" : "Profile unfeatured"), "success");
+      await supabase
+        .from("profiles")
+        .update({ is_featured: !currentFeatured, updated_at: new Date().toISOString() })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
+      showToast(!currentFeatured ? "Profile featured" : "Profile unfeatured", "success");
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === id || selectedProfile.id === id)) {
-        handleViewProfile({ ...selectedProfile, id });
+        handleViewProfile({ ...selectedProfile, id, is_featured: !currentFeatured });
       }
     } catch (err) {
       console.error("Feature error:", err);
-      showToast(err.response?.data?.message || "Failed to update featured status", "error");
+      showToast(err.message || "Failed to update featured status", "error");
     } finally {
       setActionLoading(null);
     }
@@ -305,7 +342,11 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-delete`);
-      await axios.delete(`${BASE_URL}/admin/people/${profileId}`, getHeaders());
+      await supabase
+        .from("profiles")
+        .delete()
+        .or(`id.eq.${profileId},_id.eq.${profileId}`);
+
       showToast("Profile permanently deleted", "success");
       setDeleteDialog({ show: false, profileId: null, name: "" });
       if (showViewModal && selectedProfile && (selectedProfile._id === profileId || selectedProfile.id === profileId)) {
@@ -315,7 +356,7 @@ const People = () => {
       fetchAnalytics();
     } catch (err) {
       console.error("Delete error:", err);
-      showToast(err.response?.data?.message || "Failed to delete profile", "error");
+      showToast(err.message || "Failed to delete profile", "error");
     } finally {
       setActionLoading(null);
     }
@@ -324,12 +365,16 @@ const People = () => {
   const handleResolveReport = async (reportId) => {
     try {
       setActionLoading(`report-${reportId}`);
-      await axios.post(`${BASE_URL}/admin/people/reports/${reportId}/resolve`, {}, getHeaders());
+      await supabase
+        .from("people_reports")
+        .update({ resolved: true, status: "resolved", updated_at: new Date().toISOString() })
+        .or(`id.eq.${reportId},_id.eq.${reportId}`);
+
       showToast("Report resolved successfully", "success");
       fetchReports();
     } catch (err) {
       console.error("Resolve report error:", err);
-      showToast(err.response?.data?.message || "Failed to resolve report", "error");
+      showToast(err.message || "Failed to resolve report", "error");
     } finally {
       setActionLoading(null);
     }

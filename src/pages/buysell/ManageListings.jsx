@@ -1,22 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Eye, CheckCircle, Ban, X, AlertCircle, Check, TrendingUp, Package, Users, Calendar, MapPin, Phone, Mail, Clock, Home, Tag, DollarSign } from "lucide-react";
-import axios from "axios";
 import { utcToLocal } from "../../utils/timezone";
-
-/* ==============================
-   API CONFIG
-================================ */
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
-
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("admin-auth");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+import { supabase } from "../../lib/supabaseClient";
 
 /* ==============================
    NOTIFICATION
@@ -304,8 +289,16 @@ const ManageListings = () => {
 
     const fetchPending = async () => {
         try {
-            const res = await api.get("/buy-sell/admin/buy-sell/pending");
-            setPending(res.data?.listings || []);
+            const { data, error } = await supabase
+                .from("buy_sell")
+                .select("*")
+                .eq("status", "pending")
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.warn("Supabase fetch pending listings note:", error);
+            }
+            setPending(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to fetch pending listings:", err);
             showNotification("error", "Failed to fetch pending listings");
@@ -314,8 +307,16 @@ const ManageListings = () => {
 
     const fetchApproved = async () => {
         try {
-            const res = await api.get("/buy-sell/get");
-            setApproved(res.data?.listings || res.data || []);
+            const { data, error } = await supabase
+                .from("buy_sell")
+                .select("*")
+                .eq("status", "approved")
+                .order("created_at", { ascending: false });
+
+            if (error) {
+                console.warn("Supabase fetch approved listings note:", error);
+            }
+            setApproved(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to fetch approved listings:", err);
             showNotification("error", "Failed to fetch approved listings");
@@ -329,10 +330,12 @@ const ManageListings = () => {
 
     const approveListing = async (listing) => {
         try {
-            await api.put(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`)
-            );
-            setPending(p => p.filter(x => x.id !== listing.id));
+            await supabase
+                .from("buy_sell")
+                .update({ status: "approved", updated_at: new Date().toISOString() })
+                .or(`id.eq.${listing.id},_id.eq.${listing.id}`);
+
+            setPending(p => p.filter(x => x.id !== listing.id && x._id !== listing.id));
             fetchApproved();
             showNotification("success", "Listing approved successfully");
         } catch (err) {
@@ -343,11 +346,17 @@ const ManageListings = () => {
 
     const denyListing = async (reason) => {
         try {
-            const listing = pending.find(l => l.id === denyTarget);
-            await api.put(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason })
-            );
-            setPending(p => p.filter(x => x.id !== denyTarget));
+            const listing = pending.find(l => l.id === denyTarget || l._id === denyTarget);
+            await supabase
+                .from("buy_sell")
+                .update({
+                    status: "rejected",
+                    rejection_reason: reason,
+                    updated_at: new Date().toISOString()
+                })
+                .or(`id.eq.${denyTarget},_id.eq.${denyTarget}`);
+
+            setPending(p => p.filter(x => x.id !== denyTarget && x._id !== denyTarget));
             setDenied(d => [...d, { ...listing, status: "denied", reason }]);
             setDenyTarget(null);
             showNotification("success", "Listing denied successfully");

@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from '../../lib/supabaseClient';
 
 function HostPending() {
     const [hosts, setHosts] = useState([]);
@@ -15,13 +13,23 @@ function HostPending() {
         const fetchHosts = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/host/admin/hosts/pending`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setHosts(response.data.hosts || []);
+                const { data, error: fetchErr } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("status", "pending")
+                    .order("created_at", { ascending: false });
+
+                if (fetchErr) {
+                    console.warn("Supabase fetch pending hosts note:", fetchErr);
+                }
+                const formatted = (Array.isArray(data) ? data : []).map(h => ({
+                    ...h,
+                    full_name: h.full_name || `${h.firstName || ''} ${h.lastName || ''}`.trim() || h.name || 'Host',
+                    email: h.email || ''
+                }));
+                setHosts(formatted);
             } catch (err) {
-                setError(err.response?.data?.message || err.message);
+                setError(err.message || 'Failed to fetch pending hosts');
             } finally {
                 setLoading(false);
             }
@@ -35,35 +43,38 @@ function HostPending() {
     const handleApprove = async () => {
         if (!selectedHost) return;
         try {
-            const token = localStorage.getItem("admin-auth");
-            const response = await axios.put(`${BASE_URL}/host/admin/hosts/approve/${selectedHost.id}`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
+            const hostId = selectedHost.id || selectedHost._id;
+            await supabase
+                .from("profiles")
+                .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
+                .or(`id.eq.${hostId},_id.eq.${hostId}`);
+
+            setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
             closeModal();
         } catch (e) {
             console.error(e);
-            alert(e.response?.data?.message || 'Failed');
+            alert(e.message || 'Failed');
         }
     };
 
     const handleRejectSubmit = async () => {
         if (!selectedHost || !rejectionReason.trim()) { alert("Reason required"); return; }
         try {
-            const token = localStorage.getItem("admin-auth");
-            const response = await axios.put(`${BASE_URL}/host/admin/hosts/reject/${selectedHost.id}`, {
-                rejection_reason: rejectionReason
-            }, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
+            const hostId = selectedHost.id || selectedHost._id;
+            await supabase
+                .from("profiles")
+                .update({
+                    status: "rejected",
+                    rejection_reason: rejectionReason,
+                    updated_at: new Date().toISOString()
+                })
+                .or(`id.eq.${hostId},_id.eq.${hostId}`);
+
+            setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
             closeModal();
         } catch (e) {
             console.error(e);
-            alert(e.response?.data?.message || 'Failed');
+            alert(e.message || 'Failed');
         }
     };
 

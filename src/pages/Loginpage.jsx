@@ -1,10 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
-import axios from "axios";
+import { supabase } from "../lib/supabaseClient";
 import { useAdmin } from "../context/AdminContext";
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 export default function AdminLogin() {
     const [email, setEmail] = useState("");
@@ -15,34 +13,45 @@ export default function AdminLogin() {
     const navigate = useNavigate();
     const { setAdmin } = useAdmin();
 
-    // LOGIN USING EMAIL + PASSWORD WITH axios
+    // LOGIN USING SUPABASE AUTH
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const response = await axios.post(`${BASE_URL}/admin/login`, {
+            const { data, error } = await supabase.auth.signInWithPassword({
                 email,
-                password
-            }, {
-                headers: { "Content-Type": "application/json" },
-                withCredentials: true
+                password,
             });
 
-            const data = response.data;
+            if (error) {
+                alert(error.message || "Invalid admin credentials!");
+                setLoading(false);
+                return;
+            }
 
-            if (data.success) {
+            const user = data?.user;
+            if (user) {
+                const role =
+                    user.user_metadata?.role ||
+                    user.app_metadata?.role ||
+                    user.role ||
+                    "admin";
+
+                const adminData = {
+                    id: user.id,
+                    email: user.email,
+                    role: role,
+                    name: user.user_metadata?.name || user.email?.split("@")[0] || "Admin",
+                    ...user.user_metadata,
+                };
+
                 localStorage.setItem("admin-logged-in", "true");
-                if (data.token) {
-                    localStorage.setItem("admin-auth", data.token);
+                localStorage.setItem("admin-role", role);
+                if (data.session?.access_token) {
+                    localStorage.setItem("admin-auth", data.session.access_token);
                 }
 
-                // Store admin role for sidebar/route filtering
-                const adminData = data.data || data.admin || {};
-                const role = adminData.role || "admin";
-                localStorage.setItem("admin-role", role);
-
-                // Update AdminContext state in memory to prevent double-login redirect
                 setAdmin(adminData);
 
                 // Recruiters go directly to Career page
@@ -52,15 +61,14 @@ export default function AdminLogin() {
                     navigate("/dashboard");
                 }
             } else {
-                alert(data.message || "Invalid admin credentials!");
+                alert("Login succeeded, but no user data was returned.");
             }
         } catch (error) {
             console.error("Login Error:", error);
-            const errMsg = error.response?.data?.message || "Login failed";
-            alert(errMsg);
+            alert(error.message || "An unexpected error occurred during login.");
+        } finally {
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (

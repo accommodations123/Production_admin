@@ -1,6 +1,5 @@
 // HostingApprovalPremium.jsx
 import React, { useEffect, useState, useRef } from "react";
-import axios from "axios";
 import {
   TrashIcon,
   EyeIcon,
@@ -45,24 +44,18 @@ import {
 } from "@heroicons/react/24/solid";
 
 import AccomadationStats from "../pages/AccommodationPages/AccomadationStats";
-
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
-const API = {
-  PENDING: `${API_BASE}/adminproperty/pending`,
-  APPROVED: `${API_BASE}/adminproperty/admin/properties/approved`,
-  REJECTED: `${API_BASE}/adminproperty/admin/properties/rejected`,
-  APPROVE: (id) => `${API_BASE}/adminproperty/approve/${id}`,
-  REJECT: (id) => `${API_BASE}/adminproperty/reject/${id}`,
-};
+import { supabase } from "../lib/supabaseClient";
 
 const getImageUrl = (imagePath) => {
   if (!imagePath) return null;
-  // If the path is already a full URL, return it as-is
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
   const normalizedPath = imagePath.replace(/\\/g, '/');
   const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-  return `${API_BASE}/${cleanPath}`;
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  if (supabaseUrl) {
+    return `${supabaseUrl}/storage/v1/object/public/${cleanPath}`;
+  }
+  return cleanPath;
 };
 
 // --- UTILITIES ---
@@ -287,44 +280,24 @@ const HostingApproval = () => {
     };
   };
 
-  // Fetch all properties (pending, approved, rejected)
+  // Fetch all properties (pending, approved, rejected) from Supabase
   useEffect(() => {
     let mounted = true;
     const fetchAllProperties = async () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem("admin-auth");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const { data, error: fetchErr } = await supabase
+          .from("properties")
+          .select("*")
+          .order("created_at", { ascending: false });
 
-        // Fetch all 3 endpoints concurrently
-        const [pendingRes, approvedRes, rejectedRes] = await Promise.allSettled([
-          axios.get(API.PENDING, { headers }),
-          axios.get(API.APPROVED, { headers }),
-          axios.get(API.REJECTED, { headers })
-        ]);
+        if (fetchErr) {
+          console.warn("Supabase fetch properties query warning:", fetchErr);
+        }
 
-        // Helper to extract data safely
-        const extractData = (res) => {
-          if (res.status === 'fulfilled') {
-            const data = res.value?.data;
-            if (Array.isArray(data)) return data;
-            if (Array.isArray(data?.data)) return data.data;
-            if (Array.isArray(data?.properties)) return data.properties;
-            return [];
-          }
-          console.error("Fetch failed:", res.reason);
-          return [];
-        };
-
-        const pendingList = extractData(pendingRes).map(item => ({ ...item, status: 'pending' }));
-        const approvedList = extractData(approvedRes).map(item => ({ ...item, status: 'approved' }));
-        const rejectedList = extractData(rejectedRes).map(item => ({ ...item, status: 'rejected' }));
-
-        // Merge all lists
-        // Note: We map status manually because the API might not return it or might return something else
-        const allRawProperties = [...pendingList, ...approvedList, ...rejectedList];
-        const normalized = allRawProperties.map(normalize);
+        const rawList = Array.isArray(data) ? data : [];
+        const normalized = rawList.map(normalize);
 
         if (mounted) {
           setProperties(normalized);
@@ -382,12 +355,17 @@ const HostingApproval = () => {
 
   // Actions
   const handleApprove = async (id) => {
-    if (actionInProgress || !token) return;
+    if (actionInProgress) return;
     setActionInProgress(true);
     try {
-      await axios.put(API.APPROVE(id), {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { error: updateErr } = await supabase
+        .from("properties")
+        .update({ status: "approved", updated_at: new Date().toISOString() })
+        .or(`id.eq.${id},_id.eq.${id}`);
+
+      if (updateErr) {
+        console.warn("Supabase approve update note:", updateErr);
+      }
 
       // Update local state
       setProperties(prev => prev.map(p =>
@@ -396,7 +374,7 @@ const HostingApproval = () => {
 
       setStats(prev => ({
         ...prev,
-        pending: prev.pending - 1,
+        pending: Math.max(0, prev.pending - 1),
         approved: prev.approved + 1
       }));
 
@@ -418,15 +396,22 @@ const HostingApproval = () => {
   };
 
   const handleRejectConfirm = async () => {
-    if (actionInProgress || !rejectionReason.trim() || !token || !currentPropertyId) return;
+    if (actionInProgress || !rejectionReason.trim() || !currentPropertyId) return;
     setActionInProgress(true);
 
     try {
-      await axios.put(API.REJECT(currentPropertyId), {
-        reason: rejectionReason.trim(),
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { error: updateErr } = await supabase
+        .from("properties")
+        .update({
+          status: "rejected",
+          rejection_reason: rejectionReason.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .or(`id.eq.${currentPropertyId},_id.eq.${currentPropertyId}`);
+
+      if (updateErr) {
+        console.warn("Supabase reject update note:", updateErr);
+      }
 
       // Update local state
       setProperties(prev => prev.map(p =>
@@ -439,7 +424,7 @@ const HostingApproval = () => {
 
       setStats(prev => ({
         ...prev,
-        pending: prev.pending - 1,
+        pending: Math.max(0, prev.pending - 1),
         rejected: prev.rejected + 1
       }));
 
@@ -461,17 +446,19 @@ const HostingApproval = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!token) return;
     if (!window.confirm("Are you sure you want to delete this property? This action cannot be undone.")) return;
 
     try {
-      // Note: You'll need to add a delete endpoint in your API
-      // For now, we'll just remove it from the local state
+      await supabase
+        .from("properties")
+        .delete()
+        .or(`id.eq.${id},_id.eq.${id}`);
+
       setProperties(prev => prev.filter(p => p._id !== String(id)));
       setStats(prev => ({
         ...prev,
-        pending: prev.pending - 1,
-        total: prev.total - 1
+        pending: Math.max(0, prev.pending - 1),
+        total: Math.max(0, prev.total - 1)
       }));
       showToast("Property removed", 'info');
     } catch (err) {

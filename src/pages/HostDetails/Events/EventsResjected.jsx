@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+import { supabase } from '../../../lib/supabaseClient';
 
 function EventRejected() {
     const [events, setEvents] = useState([]);
@@ -12,15 +10,19 @@ function EventRejected() {
         const fetchEvents = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/events/admin/events/rejected`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const d = response.data;
-                const list = Array.isArray(d) ? d : (d?.events || d?.data || []);
-                setEvents(list);
+                const { data, error } = await supabase
+                    .from("events")
+                    .select("*")
+                    .eq("status", "rejected")
+                    .order("created_at", { ascending: false });
+
+                if (error) {
+                    console.warn("Supabase fetch rejected events note:", error);
+                }
+                setEvents(Array.isArray(data) ? data : []);
             } catch (e) {
                 console.error(e);
+                setEvents([]);
             } finally {
                 setLoading(false);
             }

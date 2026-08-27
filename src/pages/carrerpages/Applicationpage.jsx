@@ -1,25 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import {
     MagnifyingGlassIcon, EyeIcon, EnvelopeIcon, CheckCircleIcon, XCircleIcon,
     UserGroupIcon, DocumentTextIcon, ArrowDownTrayIcon,
     XMarkIcon, PaperAirplaneIcon, ClockIcon as PendingIcon
 } from '@heroicons/react/24/outline';
 import { formatUTCDate } from '../../utils/timezone';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-const api = axios.create({
-    baseURL: BASE_URL,
-    withCredentials: true,
-});
-
-api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("admin-auth");
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+import { supabase } from '../../lib/supabaseClient';
 
 const getRelativeTime = (dateString) => {
     if (!dateString) return 'N/A';
@@ -306,40 +292,29 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
     };
 
     /* =====================================================
-       FETCH APPLICATIONS (GET ALL)
+       FETCH APPLICATIONS (GET ALL VIA SUPABASE)
     ===================================================== */
     useEffect(() => {
         const fetchApplications = async () => {
             try {
                 setLoading(true);
-                // Adding a timestamp to prevent 304 caching issues if the data changes frequently
-                const endpoint = "/career/admin/applications?t=" + new Date().getTime();
-                const res = await api.get(endpoint);
+                const { data, error: fetchErr } = await supabase
+                    .from("job_applications")
+                    .select("*, jobs(*)")
+                    .order("created_at", { ascending: false });
 
-                let rawData = [];
-                if (res.data.applications && Array.isArray(res.data.applications)) {
-                    rawData = res.data.applications;
-                } else if (Array.isArray(res.data)) {
-                    rawData = res.data;
-                } else if (res.data.data && Array.isArray(res.data.data)) {
-                    rawData = res.data.data;
-                } else {
-                    console.warn("Unexpected API response structure:", res.data);
-                    rawData = [];
+                if (fetchErr) {
+                    console.warn("Supabase fetch applications note:", fetchErr);
                 }
 
+                const rawData = Array.isArray(data) ? data : [];
                 const formattedData = rawData.map(formatApplicationData);
                 setApplications(formattedData);
 
             } catch (err) {
                 console.error("Error fetching applications:", err);
-                if (err.message === "Network Error") {
-                    setError("Network Error: Please check CORS or Backend URL");
-                    showNotification("Network Error", "error");
-                } else {
-                    setError(err.response?.data?.message || err.message);
-                    showNotification("Failed to load data", "error");
-                }
+                setError(err.message || "Failed to load applications");
+                showNotification("Failed to load data", "error");
             } finally {
                 setLoading(false);
             }
@@ -357,13 +332,14 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         setSelectedApplication(null);
 
         try {
-            const endpoint = "/career/admin/applications/" + id;
-            const res = await api.get(endpoint);
+            const { data: rawData, error: fetchErr } = await supabase
+                .from("job_applications")
+                .select("*, jobs(*)")
+                .or(`id.eq.${id},_id.eq.${id}`)
+                .maybeSingle();
 
-            const rawData = res.data.application || res.data.data || res.data;
-
-            if (!rawData) {
-                throw new Error("Application data not found in response");
+            if (fetchErr || !rawData) {
+                throw new Error(fetchErr?.message || "Application data not found");
             }
 
             const formattedData = formatApplicationData(rawData);
@@ -379,7 +355,7 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
     };
 
     /* =====================================================
-       UPDATE STATUS (Direct Action)
+       UPDATE STATUS (Direct Action via Supabase)
     ===================================================== */
     const updateStatus = async (appId, newStatus) => {
         const currentApp = applications.find(app => app.id === appId);
@@ -397,16 +373,16 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         setShowApplicationModal(false);
 
         try {
-            const endpoint = "/career/admin/applications/" + appId + "/status";
-            const payload = { status: newStatus };
+            await supabase
+                .from("job_applications")
+                .update({ status: newStatus, updated_at: new Date().toISOString() })
+                .or(`id.eq.${appId},_id.eq.${appId}`);
 
-            await api.patch(endpoint, payload);
             showNotification(`Application marked as ${newStatus}`);
         } catch (err) {
-            console.error("Status update failed:", err.response?.data || err);
+            console.error("Status update failed:", err);
             setApplications(originalApps);
-            const serverMsg = err.response?.data?.message || err.response?.data?.error || "Failed to update status";
-            showNotification(serverMsg, "error");
+            showNotification("Failed to update status", "error");
         }
     };
 

@@ -3,13 +3,11 @@ import { motion, AnimatePresence, } from 'framer-motion';
 import {
   Building, Plus, ArrowRight, Search, Filter, Grid, List, X, Home, Bell, Map, Eye, Edit, Trash2, Copy, Mail, Phone, CalendarDays, Wifi, Car, Coffee, Dumbbell, Tv, Wind, MoreHorizontal, XCircle, ChevronRight
 } from 'lucide-react';
-import axios from "axios";
 import PropertyList from "./PropertyList";
 import PropertyDetail from "./PropertyDetail";
+import { supabase } from "../../lib/supabaseClient";
 
 // --- CONFIG ---
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-const API_URL = `${BASE_URL}/admin/approved/approved-host-details`;
 const BRAND_COLORS = {
   primary: "#0f172a", // Slate-900
   accent: "#cb2926",  // Red
@@ -116,77 +114,74 @@ const AccommodationCategories = () => {
 
   const searchInputRef = useRef(null);
 
-  // --- DATA FETCHING ---
+  // --- DATA FETCHING VIA SUPABASE ---
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("admin-auth");
-        if (!token) {
-          throw new Error("No authentication token found.");
+        const { data: properties, error: fetchErr } = await supabase
+          .from("properties")
+          .select("*")
+          .eq("status", "approved");
+
+        if (fetchErr) {
+          console.warn("Supabase fetch approved properties note:", fetchErr);
         }
 
-        const res = await axios.get(API_URL, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const json = res.data;
-        if (!json.success || !json.data) {
-          throw new Error("Invalid API response format");
-        }
-
+        const items = Array.isArray(properties) ? properties : [];
         const grouped = {};
 
-        json.data.forEach((item) => {
+        items.forEach((item) => {
+          const categoryId = item.category_id || item.property_type?.toLowerCase() || "apartment";
           const normalized = {
             property: {
-              id: item.id,
-              category_id: item.category_id,
-              property_type: item.property_type,
+              id: item.id || item._id,
+              category_id: categoryId,
+              property_type: item.property_type || "Apartment",
               privacy_type: item.privacy_type,
-              guests: item.guests,
-              bedrooms: item.bedrooms,
-              bathrooms: item.bathrooms,
+              guests: item.guests || item.guest_capacity || 1,
+              bedrooms: item.bedrooms || 1,
+              bathrooms: item.bathrooms || 1,
               pets_allowed: item.pets_allowed,
               area: item.area,
-              title: item.title || `${item.property_type} in ${item.city}`,
+              title: item.title || `${item.property_type || 'Property'} in ${item.city || 'Location'}`,
               description: item.description,
               country: item.country,
               city: item.city,
               address: item.address,
-              photos: item.photos || [],
+              photos: item.photos || item.images || [],
               video: item.video,
               amenities: item.amenities || [],
               rules: item.rules || [],
               legal_docs: item.legal_docs || [],
               price_per_hour: item.price_per_hour,
-              price_per_night: item.price_per_night,
+              price_per_night: item.price_per_night || item.price || 0,
               price_per_month: item.price_per_month,
-              currency: item.currency,
-              status: item.status,
-              createdAt: item.createdAt,
+              currency: item.currency || "USD",
+              status: item.status || "approved",
+              createdAt: item.createdAt || item.created_at,
             },
             host: {
-              id: item.Host?.id,
-              full_name: item.Host?.full_name,
-              phone: item.Host?.phone,
-              email: item.Host?.User?.email,
+              id: item.host_id || item.user_id,
+              full_name: item.hostName || item.host_name || "Host",
+              phone: item.phone,
+              email: item.email,
             },
           };
 
-          if (!grouped[item.category_id]) {
-            grouped[item.category_id] = {
-              id: item.category_id,
-              name: CATEGORY_NAMES[item.category_id] || item.category_id.toUpperCase(),
-              icon: TYPE_ICONS[item.category_id] || Building,
-              description: `Browse all ${CATEGORY_NAMES[item.category_id] || item.category_id} properties`,
+          if (!grouped[categoryId]) {
+            grouped[categoryId] = {
+              id: categoryId,
+              name: CATEGORY_NAMES[categoryId] || categoryId.toUpperCase(),
+              icon: TYPE_ICONS[categoryId] || Building,
+              description: `Browse all ${CATEGORY_NAMES[categoryId] || categoryId} properties`,
               properties: [],
               count: 0,
             };
           }
 
-          grouped[item.category_id].properties.push(normalized);
-          grouped[item.category_id].count += 1;
+          grouped[categoryId].properties.push(normalized);
+          grouped[categoryId].count += 1;
         });
 
         setCategories(Object.values(grouped));

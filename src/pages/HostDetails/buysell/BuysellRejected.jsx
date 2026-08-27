@@ -1,35 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { supabase } from '../../../lib/supabaseClient';
 
 const BuySellBlocked = () => {
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState(null);
 
-    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
     useEffect(() => {
         const fetchBlocked = async () => {
             try {
-                const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/buy-sell/admin/buy-sell/blocked`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const { data, error } = await supabase
+                    .from("buy_sell")
+                    .select("*")
+                    .eq("status", "rejected")
+                    .order("created_at", { ascending: false });
 
-                const data = response.data;
-
-                // --- FIXED DATA HANDLING ---
-                if (Array.isArray(data)) {
-                    setListings(data);
-                } else if (data && Array.isArray(data.listings)) {
-                    // This handles the { success: true, listings: [...] } format
-                    setListings(data.listings);
-                } else if (data && Array.isArray(data.data)) {
-                    setListings(data.data);
-                } else {
-                    console.error("Unexpected Data Format:", data);
-                    setListings([]);
+                if (error) {
+                    console.warn("Supabase fetch rejected buy_sell note:", error);
                 }
+                setListings(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error("Error fetching blocked listings:", err);
                 setListings([]);
@@ -39,7 +28,7 @@ const BuySellBlocked = () => {
         };
 
         fetchBlocked();
-    }, [BASE_URL]);
+    }, []);
 
     return (
         <div className="space-y-4">
