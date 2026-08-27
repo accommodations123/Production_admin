@@ -127,15 +127,26 @@ function HostRejected() {
             setActionLoading(true);
             const hostId = selectedHost.id || selectedHost._id;
             
-            await supabase
+            let query = supabase
                 .from("profiles")
-                .update({ status: "pending", is_approved: false, rejection_reason: null, updated_at: new Date().toISOString() })
-                .or(`id.eq.${hostId},_id.eq.${hostId}`);
+                .update({ status: "pending", is_approved: false, rejection_reason: null, updated_at: new Date().toISOString() });
+
+            if (hostId) {
+                query = query.eq("id", hostId);
+            } else if (selectedHost.email) {
+                query = query.eq("email", selectedHost.email);
+            }
+
+            const { error: reconsiderErr } = await query;
+            if (reconsiderErr) {
+                console.error("Reconsider error:", reconsiderErr);
+                throw reconsiderErr;
+            }
 
             setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
             setSelectedHost(null);
         } catch (e) {
-            console.error(e);
+            console.error("Reconsider error:", e);
             alert(e.message || 'Failed to move to pending');
         } finally {
             setActionLoading(false);

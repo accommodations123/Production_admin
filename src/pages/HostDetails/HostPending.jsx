@@ -148,28 +148,49 @@ function HostPending() {
             const hostId = selectedHost.id || selectedHost._id;
             
             // Mark profile as approved
-            await supabase
+            let profileQuery = supabase
                 .from("profiles")
                 .update({ 
                     status: "approved", 
                     is_approved: true, 
-                    role: selectedHost.role === "user" ? "host" : (selectedHost.role || "host"),
+                    role: "host",
                     updated_at: new Date().toISOString() 
-                })
-                .or(`id.eq.${hostId},_id.eq.${hostId}`);
+                });
+
+            if (hostId) {
+                profileQuery = profileQuery.eq("id", hostId);
+            } else if (selectedHost.email) {
+                profileQuery = profileQuery.eq("email", selectedHost.email);
+            }
+
+            const { error: profileErr } = await profileQuery;
+            if (profileErr) {
+                console.error("Profile approve error:", profileErr);
+                throw profileErr;
+            }
 
             // Also approve their properties if any
-            if (selectedHost.email) {
-                await supabase
+            if (hostId || selectedHost.email) {
+                let propQuery = supabase
                     .from("properties")
-                    .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
-                    .eq("email", selectedHost.email);
+                    .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() });
+
+                if (hostId && selectedHost.email) {
+                    propQuery = propQuery.or(`host_id.eq.${hostId},user_id.eq.${hostId},email.eq.${selectedHost.email}`);
+                } else if (hostId) {
+                    propQuery = propQuery.or(`host_id.eq.${hostId},user_id.eq.${hostId}`);
+                } else {
+                    propQuery = propQuery.eq("email", selectedHost.email);
+                }
+
+                const { error: propErr } = await propQuery;
+                if (propErr) console.warn("Properties approve note:", propErr);
             }
 
             setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
             closeModal();
         } catch (e) {
-            console.error(e);
+            console.error("Approve error:", e);
             alert(e.message || 'Failed to approve host');
         } finally {
             setActionLoading(false);
@@ -185,20 +206,31 @@ function HostPending() {
             setActionLoading(true);
             const hostId = selectedHost.id || selectedHost._id;
             
-            await supabase
+            let query = supabase
                 .from("profiles")
                 .update({
                     status: "rejected",
                     is_approved: false,
                     rejection_reason: rejectionReason,
                     updated_at: new Date().toISOString()
-                })
-                .or(`id.eq.${hostId},_id.eq.${hostId}`);
+                });
+
+            if (hostId) {
+                query = query.eq("id", hostId);
+            } else if (selectedHost.email) {
+                query = query.eq("email", selectedHost.email);
+            }
+
+            const { error: rejectErr } = await query;
+            if (rejectErr) {
+                console.error("Reject error:", rejectErr);
+                throw rejectErr;
+            }
 
             setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
             closeModal();
         } catch (e) {
-            console.error(e);
+            console.error("Reject error:", e);
             alert(e.message || 'Failed to reject host');
         } finally {
             setActionLoading(false);
