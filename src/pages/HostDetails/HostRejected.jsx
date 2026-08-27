@@ -12,24 +12,40 @@ function HostRejected() {
     const [selectedHost, setSelectedHost] = useState(null);
     const [actionLoading, setActionLoading] = useState(false);
 
+    const parseJson = (val) => {
+        if (!val) return {};
+        if (typeof val === 'object') return val;
+        if (typeof val === 'string') {
+            try { return JSON.parse(val); } catch { return {}; }
+        }
+        return {};
+    };
+
     const normalizeHost = (h, allProps = []) => {
-        const id = h.id || h._id || '';
-        const email = h.email || h.user_email || h.contact_email || h.mail || '';
-        const fullName = h.full_name || `${h.firstName || ''} ${h.lastName || ''}`.trim() || h.name || h.displayName || h.userName || h.user_name || h.host_name || '';
-        const phone = h.phone || h.phone_number || h.phoneNumber || h.mobile || h.mobile_number || h.contact || h.contact_number || h.tel || '';
-        const whatsapp = h.whatsapp || h.whatsApp || h.whatsapp_number || h.whatsappNumber || h.wa || h.seller_whatsapp || '';
-        const streetAddress = h.street_address || h.street || h.address || h.streetAddress || h.address_line_1 || h.address1 || h.location || h.area || '';
-        const city = h.city || h.location_city || h.town || '';
-        const state = h.state || h.province || h.region || h.state_province || '';
-        const zipCode = h.zip_code || h.zipCode || h.zip || h.postal_code || h.postalCode || h.pincode || h.pin || '';
-        const country = h.country || h.country_name || h.nation || '';
-        const facebook = h.facebook || h.facebook_url || h.facebookUrl || h.socials?.facebook || h.social_links?.facebook || h.social?.facebook || '';
-        const instagram = h.instagram || h.instagram_url || h.instagramUrl || h.socials?.instagram || h.social_links?.instagram || h.social?.instagram || '';
-        const linkedin = h.linkedin || h.linkedin_url || h.socials?.linkedin || h.social_links?.linkedin || '';
-        const website = h.website || h.portfolio_url || h.portfolio || '';
-        const bio = h.bio || h.about || h.description || '';
-        const headline = h.headline || h.occupation || h.profession || h.role || '';
-        const rejectionReason = h.rejection_reason || h.rejectionReason || 'Application criteria was not satisfied';
+        const raw = h || {};
+        const addr = parseJson(raw.address || raw.location);
+        const contact = parseJson(raw.contact || raw.contact_info);
+        const socials = parseJson(raw.socials || raw.social_links || raw.socialMedia);
+        const verification = parseJson(raw.verification);
+        const meta = parseJson(raw.metadata || raw.meta || raw.raw_user_meta_data);
+
+        const id = raw.id || raw._id || '';
+        const email = raw.email || raw.user_email || raw.contact_email || raw.mail || contact.email || meta.email || '';
+        const fullName = raw.full_name || `${raw.firstName || ''} ${raw.lastName || ''}`.trim() || raw.name || raw.displayName || raw.userName || raw.user_name || raw.host_name || verification.full_name || meta.full_name || meta.name || '';
+        const phone = raw.phone || raw.phone_number || raw.phoneNumber || raw.mobile || raw.mobile_number || raw.contact || raw.contact_number || raw.tel || contact.phone || verification.phone || meta.phone || '';
+        const whatsapp = raw.whatsapp || raw.whatsApp || raw.whatsapp_number || raw.whatsappNumber || raw.wa || raw.seller_whatsapp || contact.whatsapp || socials.whatsapp || '';
+        const streetAddress = raw.street_address || raw.street || (typeof raw.address === 'string' ? raw.address : '') || raw.streetAddress || raw.address_line_1 || raw.address1 || raw.area || (typeof addr === 'object' ? (addr.street || addr.street_address || addr.address || '') : '');
+        const city = raw.city || raw.location_city || raw.town || (typeof addr === 'object' ? addr.city : '') || '';
+        const state = raw.state || raw.province || raw.region || raw.state_province || (typeof addr === 'object' ? (addr.state || addr.province) : '') || '';
+        const zipCode = raw.zip_code || raw.zipCode || raw.zip || raw.postal_code || raw.postalCode || raw.pincode || raw.pin || (typeof addr === 'object' ? (addr.zip_code || addr.zipCode || addr.postal_code) : '') || '';
+        const country = raw.country || raw.country_name || raw.nation || (typeof addr === 'object' ? addr.country : '') || '';
+        const facebook = raw.facebook || raw.facebook_url || raw.facebookUrl || socials.facebook || '';
+        const instagram = raw.instagram || raw.instagram_url || raw.instagramUrl || socials.instagram || '';
+        const linkedin = raw.linkedin || raw.linkedin_url || socials.linkedin || '';
+        const website = raw.website || raw.portfolio_url || raw.portfolio || meta.website || '';
+        const bio = raw.bio || raw.about || raw.description || raw.about_me || meta.bio || '';
+        const headline = raw.headline || raw.occupation || raw.profession || raw.role || '';
+        const rejectionReason = raw.rejection_reason || raw.rejectionReason || 'Application criteria was not satisfied';
 
         // Match properties for this host
         const userProperties = allProps.filter(p => 
@@ -42,7 +58,7 @@ function HostRejected() {
         const finalName = fullName || firstProp.host_name || firstProp.hostName || firstProp.user_name || (email ? email.split('@')[0] : 'Host Applicant');
 
         return {
-            ...h,
+            ...raw,
             id,
             full_name: finalName,
             email: email || firstProp.email || '',
@@ -78,39 +94,7 @@ function HostRejected() {
 
             // Rejected profiles
             const rejectedProfiles = profilesData.filter(p => p.status === "rejected");
-
             const formatted = rejectedProfiles.map(h => normalizeHost(h, propsData));
-
-            // Check rejected properties whose host may not be in profiles
-            const existingEmails = new Set(formatted.map(h => h.email?.toLowerCase()).filter(Boolean));
-            const existingIds = new Set(formatted.map(h => h.id).filter(Boolean));
-
-            propsData.forEach(p => {
-                const hostEmail = p.email?.toLowerCase();
-                const hostId = p.host_id;
-                const isRejectedProp = p.status === 'rejected';
-
-                if (isRejectedProp && ((hostEmail && !existingEmails.has(hostEmail)) || (hostId && !existingIds.has(hostId)))) {
-                    if (hostEmail) existingEmails.add(hostEmail);
-                    if (hostId) existingIds.add(hostId);
-
-                    formatted.push(normalizeHost({
-                        id: hostId || p.id,
-                        full_name: p.host_name || p.hostName || p.user_name || 'Host',
-                        email: p.email || '',
-                        phone: p.phone || '',
-                        street_address: p.address || '',
-                        city: p.city || '',
-                        state: p.state || '',
-                        zip_code: p.zip_code || '',
-                        country: p.country || '',
-                        status: 'rejected',
-                        rejection_reason: p.rejection_reason || 'Listing rejected',
-                        created_at: p.created_at,
-                        updated_at: p.updated_at
-                    }, propsData));
-                }
-            });
 
             setHosts(formatted);
         } catch (err) {
@@ -131,7 +115,6 @@ function HostRejected() {
             setActionLoading(true);
             const hostId = selectedHost.id || selectedHost._id;
             
-            // Move back to pending for re-evaluation
             await supabase
                 .from("profiles")
                 .update({ status: "pending", is_approved: false, rejection_reason: null, updated_at: new Date().toISOString() })

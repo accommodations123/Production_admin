@@ -15,23 +15,39 @@ function HostPending() {
     const [isRejecting, setIsRejecting] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
 
+    const parseJson = (val) => {
+        if (!val) return {};
+        if (typeof val === 'object') return val;
+        if (typeof val === 'string') {
+            try { return JSON.parse(val); } catch { return {}; }
+        }
+        return {};
+    };
+
     const normalizeHost = (h, allProps = []) => {
-        const id = h.id || h._id || '';
-        const email = h.email || h.user_email || h.contact_email || h.mail || '';
-        const fullName = h.full_name || `${h.firstName || ''} ${h.lastName || ''}`.trim() || h.name || h.displayName || h.userName || h.user_name || h.host_name || '';
-        const phone = h.phone || h.phone_number || h.phoneNumber || h.mobile || h.mobile_number || h.contact || h.contact_number || h.tel || '';
-        const whatsapp = h.whatsapp || h.whatsApp || h.whatsapp_number || h.whatsappNumber || h.wa || h.seller_whatsapp || '';
-        const streetAddress = h.street_address || h.street || h.address || h.streetAddress || h.address_line_1 || h.address1 || h.location || h.area || '';
-        const city = h.city || h.location_city || h.town || '';
-        const state = h.state || h.province || h.region || h.state_province || '';
-        const zipCode = h.zip_code || h.zipCode || h.zip || h.postal_code || h.postalCode || h.pincode || h.pin || '';
-        const country = h.country || h.country_name || h.nation || '';
-        const facebook = h.facebook || h.facebook_url || h.facebookUrl || h.socials?.facebook || h.social_links?.facebook || h.social?.facebook || '';
-        const instagram = h.instagram || h.instagram_url || h.instagramUrl || h.socials?.instagram || h.social_links?.instagram || h.social?.instagram || '';
-        const linkedin = h.linkedin || h.linkedin_url || h.socials?.linkedin || h.social_links?.linkedin || '';
-        const website = h.website || h.portfolio_url || h.portfolio || '';
-        const bio = h.bio || h.about || h.description || '';
-        const headline = h.headline || h.occupation || h.profession || h.role || '';
+        const raw = h || {};
+        const addr = parseJson(raw.address || raw.location);
+        const contact = parseJson(raw.contact || raw.contact_info);
+        const socials = parseJson(raw.socials || raw.social_links || raw.socialMedia);
+        const verification = parseJson(raw.verification);
+        const meta = parseJson(raw.metadata || raw.meta || raw.raw_user_meta_data);
+
+        const id = raw.id || raw._id || '';
+        const email = raw.email || raw.user_email || raw.contact_email || raw.mail || contact.email || meta.email || '';
+        const fullName = raw.full_name || `${raw.firstName || ''} ${raw.lastName || ''}`.trim() || raw.name || raw.displayName || raw.userName || raw.user_name || raw.host_name || verification.full_name || meta.full_name || meta.name || '';
+        const phone = raw.phone || raw.phone_number || raw.phoneNumber || raw.mobile || raw.mobile_number || raw.contact || raw.contact_number || raw.tel || contact.phone || verification.phone || meta.phone || '';
+        const whatsapp = raw.whatsapp || raw.whatsApp || raw.whatsapp_number || raw.whatsappNumber || raw.wa || raw.seller_whatsapp || contact.whatsapp || socials.whatsapp || '';
+        const streetAddress = raw.street_address || raw.street || (typeof raw.address === 'string' ? raw.address : '') || raw.streetAddress || raw.address_line_1 || raw.address1 || raw.area || (typeof addr === 'object' ? (addr.street || addr.street_address || addr.address || '') : '');
+        const city = raw.city || raw.location_city || raw.town || (typeof addr === 'object' ? addr.city : '') || '';
+        const state = raw.state || raw.province || raw.region || raw.state_province || (typeof addr === 'object' ? (addr.state || addr.province) : '') || '';
+        const zipCode = raw.zip_code || raw.zipCode || raw.zip || raw.postal_code || raw.postalCode || raw.pincode || raw.pin || (typeof addr === 'object' ? (addr.zip_code || addr.zipCode || addr.postal_code) : '') || '';
+        const country = raw.country || raw.country_name || raw.nation || (typeof addr === 'object' ? addr.country : '') || '';
+        const facebook = raw.facebook || raw.facebook_url || raw.facebookUrl || socials.facebook || '';
+        const instagram = raw.instagram || raw.instagram_url || raw.instagramUrl || socials.instagram || '';
+        const linkedin = raw.linkedin || raw.linkedin_url || socials.linkedin || '';
+        const website = raw.website || raw.portfolio_url || raw.portfolio || meta.website || '';
+        const bio = raw.bio || raw.about || raw.description || raw.about_me || meta.bio || '';
+        const headline = raw.headline || raw.occupation || raw.profession || raw.role || '';
 
         // Match properties for this host
         const userProperties = allProps.filter(p => 
@@ -44,7 +60,7 @@ function HostPending() {
         const finalName = fullName || firstProp.host_name || firstProp.hostName || firstProp.user_name || (email ? email.split('@')[0] : 'Host Applicant');
 
         return {
-            ...h,
+            ...raw,
             id,
             full_name: finalName,
             email: email || firstProp.email || '',
@@ -77,44 +93,19 @@ function HostPending() {
             const profilesData = Array.isArray(profilesRes.data) ? profilesRes.data : [];
             const propsData = Array.isArray(propsRes.data) ? propsRes.data : [];
 
-            // Pending profiles (not approved, not rejected, not blocked)
-            const pendingProfiles = profilesData.filter(p => 
-                p.status === "pending" || (!p.status && !p.is_approved && p.status !== "rejected" && p.status !== "blocked")
-            );
+            // All accounts waiting for admin review (not approved, not rejected, not blocked, not admins)
+            const pendingProfiles = profilesData.filter(p => {
+                const isAdmin = p.role === "super_admin" || p.role === "admin";
+                if (isAdmin) return false;
 
-            const formatted = pendingProfiles.map(h => normalizeHost(h, propsData));
+                const isApproved = p.status === "approved" && p.is_approved === true;
+                const isRejected = p.status === "rejected";
+                const isBlocked = p.status === "blocked" || p.is_blocked === true;
 
-            // Also check properties that are pending where host might not be in profiles
-            const existingEmails = new Set(formatted.map(h => h.email?.toLowerCase()).filter(Boolean));
-            const existingIds = new Set(formatted.map(h => h.id).filter(Boolean));
-
-            propsData.forEach(p => {
-                const hostEmail = p.email?.toLowerCase();
-                const hostId = p.host_id;
-                const isPendingProp = p.status === 'pending' || (!p.status && !p.is_approved);
-
-                if (isPendingProp && ((hostEmail && !existingEmails.has(hostEmail)) || (hostId && !existingIds.has(hostId)))) {
-                    if (hostEmail) existingEmails.add(hostEmail);
-                    if (hostId) existingIds.add(hostId);
-
-                    formatted.push(normalizeHost({
-                        id: hostId || p.id,
-                        full_name: p.host_name || p.hostName || p.user_name || 'Host Applicant',
-                        email: p.email || '',
-                        phone: p.phone || '',
-                        street_address: p.address || '',
-                        city: p.city || '',
-                        state: p.state || '',
-                        zip_code: p.zip_code || '',
-                        country: p.country || '',
-                        status: 'pending',
-                        is_approved: false,
-                        created_at: p.created_at,
-                        updated_at: p.updated_at
-                    }, propsData));
-                }
+                return !isApproved && !isRejected && !isBlocked;
             });
 
+            const formatted = pendingProfiles.map(h => normalizeHost(h, propsData));
             setHosts(formatted);
         } catch (err) {
             console.error("Error fetching pending hosts:", err);
@@ -145,13 +136,18 @@ function HostPending() {
             setActionLoading(true);
             const hostId = selectedHost.id || selectedHost._id;
             
-            // Update profile
+            // Mark profile as approved
             await supabase
                 .from("profiles")
-                .update({ status: "approved", is_approved: true, updated_at: new Date().toISOString() })
+                .update({ 
+                    status: "approved", 
+                    is_approved: true, 
+                    role: selectedHost.role === "user" ? "host" : (selectedHost.role || "host"),
+                    updated_at: new Date().toISOString() 
+                })
                 .or(`id.eq.${hostId},_id.eq.${hostId}`);
 
-            // Also update any matching properties
+            // Also approve their properties if any
             if (selectedHost.email) {
                 await supabase
                     .from("properties")
@@ -216,7 +212,7 @@ function HostPending() {
             <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
                 <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <h3 className="text-base font-semibold text-slate-700">No Pending Applications</h3>
-                <p className="text-sm text-slate-400 mt-1">All host applications have been reviewed.</p>
+                <p className="text-sm text-slate-400 mt-1">All new host logins and applications will appear here until approved by an admin.</p>
             </div>
         );
     }
@@ -469,7 +465,7 @@ function HostPending() {
                                 </div>
                             )}
 
-                            {/* Rejection Form Input if Rejecting */}
+                            {/* Rejection Form Input */}
                             {isRejecting && (
                                 <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 space-y-3 animate-fade-in">
                                     <div className="flex items-center gap-2 text-rose-800 font-semibold text-sm">
@@ -478,7 +474,7 @@ function HostPending() {
                                     <textarea
                                         value={rejectionReason}
                                         onChange={(e) => setRejectionReason(e.target.value)}
-                                        placeholder="e.g. Incomplete address verification, invalid contact information..."
+                                        placeholder="e.g. Incomplete verification, invalid contact information..."
                                         rows={3}
                                         className="w-full p-3 bg-white border border-rose-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800"
                                     />

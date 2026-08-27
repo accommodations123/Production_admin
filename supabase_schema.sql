@@ -21,17 +21,49 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     is_verified BOOLEAN DEFAULT false,
     is_featured BOOLEAN DEFAULT false,
     phone TEXT,
+    whatsapp TEXT,
+    street_address TEXT,
+    address TEXT,
     city TEXT,
+    state TEXT,
+    zip_code TEXT,
     country TEXT,
     occupation TEXT,
     headline TEXT,
     profession TEXT,
+    bio TEXT,
+    about TEXT,
+    website TEXT,
+    facebook TEXT,
+    instagram TEXT,
+    linkedin TEXT,
+    id_proof TEXT,
+    document_url TEXT,
+    metadata JSONB,
     rejection_reason TEXT,
     block_reason TEXT,
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- MIGRATION: Run this if your profiles table already exists:
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS whatsapp TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS street_address TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS address TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS city TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS state TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS zip_code TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS about TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS website TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS facebook TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS instagram TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS linkedin TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_proof TEXT;
+-- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 -- 2. PROPERTIES TABLE (Accommodations)
 CREATE TABLE IF NOT EXISTS public.properties (
