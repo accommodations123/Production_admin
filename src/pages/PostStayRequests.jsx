@@ -24,7 +24,8 @@ import {
   Check,
   Ban,
   BadgeCheck,
-  Trash2
+  Trash2,
+  RotateCcw
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -61,9 +62,11 @@ const PostStayRequests = () => {
       try { return JSON.parse(val); } catch { return {}; }
     };
 
+    const notesObj = parseJson(r.notes);
+
     const targetUserId = String(r.user_id || r.userId || r.created_by || r.author_id || r.user?._id || r.user?.id || "");
     const targetEmail = (r.user_email || r.userEmail || r.email || r.contact_email || r.user?.email || "").toLowerCase().trim();
-    const targetName = (r.user_name || r.userName || r.name || r.fullName || r.full_name || r.user?.name || "").toLowerCase().trim();
+    const targetName = (notesObj?.seekerName || r.user_name || r.userName || r.username || r.name || r.fullName || r.full_name || r.user?.name || "").toLowerCase().trim();
 
     // Match profile from profiles list
     const matchedProfile = Array.isArray(profiles) ? profiles.find(p => {
@@ -81,6 +84,7 @@ const PostStayRequests = () => {
     const pMeta = parseJson(matchedProfile?.metadata || matchedProfile?.meta || matchedProfile?.raw_user_meta_data);
 
     const userName =
+      notesObj?.seekerName ||
       matchedProfile?.full_name ||
       `${matchedProfile?.firstName || ""} ${matchedProfile?.lastName || ""}`.trim() ||
       matchedProfile?.name ||
@@ -90,6 +94,7 @@ const PostStayRequests = () => {
       pMeta?.name ||
       r.user_name ||
       r.userName ||
+      r.username ||
       r.name ||
       r.fullName ||
       r.full_name ||
@@ -108,6 +113,7 @@ const PostStayRequests = () => {
       "";
 
     const userPhone =
+      notesObj?.whatsapp ||
       matchedProfile?.phone ||
       matchedProfile?.phone_number ||
       matchedProfile?.phoneNumber ||
@@ -150,7 +156,8 @@ const PostStayRequests = () => {
       title: r.title || r.post_title || r.stay_title || (city ? `Stay in ${city}` : "Accommodation Request"),
       city,
       country,
-      description: r.description || r.stay_description || r.stayDescription || r.notes || r.details || r.about || "",
+      description: r.description || r.stay_description || r.stayDescription || (typeof r.notes === "string" && !r.notes.startsWith("{") ? r.notes : "") || "",
+      notesObj,
       stayType,
       budget,
       currency: r.currency || r.currency_code || "INR",
@@ -277,6 +284,31 @@ const PostStayRequests = () => {
     } catch (err) {
       console.error("Approve error:", err);
       showToast(err.message || "Failed to approve request", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  /* ═══════ REVERT TO PENDING ═══════ */
+  const handleSetPending = async (id, sourceTable = "stay_requests") => {
+    try {
+      setActionLoading(`pending-${id}`);
+      const targetTable = sourceTable || "stay_requests";
+      const { error } = await supabase
+        .from(targetTable)
+        .update({ status: "pending", is_approved: false, rejection_reason: null, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      showToast("Stay request marked as Pending", "success");
+      setRequests(prev => prev.map(r => (r._id === String(id) || r.id === id) ? { ...r, status: "pending", is_approved: false, rejectionReason: null } : r));
+      if (showModal && (selectedRequest?._id === String(id) || selectedRequest?.id === id)) {
+        setShowModal(false);
+      }
+    } catch (err) {
+      console.error("Set pending error:", err);
+      showToast(err.message || "Failed to update status", "error");
     } finally {
       setActionLoading(null);
     }
@@ -663,6 +695,18 @@ const PostStayRequests = () => {
                                 </button>
                               )}
 
+                              {/* Revert to Pending Button */}
+                              {r.status !== "pending" && (
+                                <button
+                                  onClick={() => handleSetPending(id, r._sourceTable)}
+                                  disabled={actionLoading === `pending-${id}`}
+                                  className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 disabled:opacity-50"
+                                  title="Move to Pending"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" /> Pending
+                                </button>
+                              )}
+
                               {/* Reject Button */}
                               {r.status !== "rejected" && (
                                 <button
@@ -891,6 +935,20 @@ const PostStayRequests = () => {
                         </div>
                       </div>
 
+                      {/* Additional Details & Notes */}
+                      {r.notesObj && Object.keys(r.notesObj).length > 0 && (
+                        <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Seeker Preferences & Details</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
+                            {r.notesObj.state && <div><span className="font-semibold text-slate-500">State:</span> {r.notesObj.state}</div>}
+                            {r.notesObj.furnishing && <div><span className="font-semibold text-slate-500">Furnishing:</span> {r.notesObj.furnishing}</div>}
+                            {r.notesObj.whatsapp && <div><span className="font-semibold text-slate-500">WhatsApp:</span> {r.notesObj.whatsapp}</div>}
+                            {r.notesObj.linkedin && <div><span className="font-semibold text-slate-500">LinkedIn:</span> {r.notesObj.linkedin}</div>}
+                            {r.notesObj.instagram && <div><span className="font-semibold text-slate-500">Instagram:</span> {r.notesObj.instagram}</div>}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Description & Notes */}
                       <div>
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description & Notes</h4>
@@ -917,6 +975,15 @@ const PostStayRequests = () => {
                               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                             >
                               <Check className="w-4 h-4" /> Approve Request
+                            </button>
+                          )}
+                          {r.status !== "pending" && (
+                            <button
+                              onClick={() => handleSetPending(id, r._sourceTable)}
+                              disabled={actionLoading === `pending-${id}`}
+                              className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-4 h-4" /> Move to Pending
                             </button>
                           )}
                           {r.status !== "rejected" && (
