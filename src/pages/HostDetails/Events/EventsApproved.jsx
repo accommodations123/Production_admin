@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabaseClient';
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 function EventApproved() {
     const [events, setEvents] = useState([]);
@@ -10,19 +12,15 @@ function EventApproved() {
         const fetchEvents = async () => {
             try {
                 setLoading(true);
-                const { data, error } = await supabase
-                    .from("events")
-                    .select("*")
-                    .eq("status", "approved")
-                    .order("created_at", { ascending: false });
-
-                if (error) {
-                    console.warn("Supabase fetch approved events note:", error);
-                }
-                setEvents(Array.isArray(data) ? data : []);
+                const token = localStorage.getItem("admin-auth");
+                const response = await axios.get(`${BASE_URL}/events/admin/events/approved`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const d = response.data;
+                const list = Array.isArray(d) ? d : (d?.events || d?.data || []);
+                setEvents(list);
             } catch (e) {
                 console.error(e);
-                setEvents([]);
             } finally {
                 setLoading(false);
             }
@@ -94,13 +92,10 @@ function EventApproved() {
                                 </ul>
                             </div>
 
-                            {/* Host / Organizer Info */}
+                            {/* Host Info */}
                             <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                                <img src={selectedEvent.Host?.User?.profile_image || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedEvent.organizer_name || selectedEvent.Host?.full_name || 'Organizer')}&background=random`} className="w-12 h-12 rounded-full object-cover" alt="Host" />
-                                <div>
-                                    <p className="font-bold text-gray-900">{selectedEvent.organizer_name || selectedEvent.Host?.full_name || 'Organizer'}</p>
-                                    <p className="text-sm text-gray-500">{selectedEvent.organizer_email || selectedEvent.Host?.User?.email || 'No email provided'}</p>
-                                </div>
+                                <img src={selectedEvent.Host?.User?.profile_image || "https://ui-avatars.com/api/?name=Host"} className="w-12 h-12 rounded-full" alt="Host" />
+                                <div><p className="font-bold text-gray-900">{selectedEvent.Host?.full_name}</p><p className="text-sm text-gray-500">{selectedEvent.Host?.User?.email}</p></div>
                             </div>
                         </div>
                         <div className="sticky bottom-0 bg-white border-t border-gray-100 p-6 flex justify-end rounded-b-2xl">

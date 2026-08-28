@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import axios from "axios";
 import {
   TrashIcon,
   EyeIcon,
@@ -27,7 +28,8 @@ import {
   XCircleIcon as XCircleSolid,
 } from "@heroicons/react/24/solid";
 import moment from "moment";
-import { supabase } from "../lib/supabaseClient";
+
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 // --- UTILITIES ---
 function cn(...classes) {
@@ -215,34 +217,51 @@ const Events = () => {
   // --- DATA FETCHING ---
   const fetchEvents = async () => {
     setLoading(true);
+    if (!token) {
+      console.error("Token missing");
+      setLoading(false);
+      return;
+    }
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
+        axios.get(`${API_BASE}/events/admin/events/pending`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/pending`, { headers }))
+          .catch(err => { console.error("Pending events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/approved`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/approved`, { headers }))
+          .catch(err => { console.error("Approved events error:", err); return { data: { events: [] } }; }),
+        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers })
+          .catch(() => axios.get(`${API_BASE}/events/admin/rejected`, { headers }))
+          .catch(err => { console.error("Rejected events error:", err); return { data: { events: [] } }; })
+      ]);
 
-      if (error) {
-        console.warn("Supabase fetch events warning:", error);
-      }
+      const pendingData = pendingRes.data || {};
+      const approvedData = approvedRes.data || {};
+      const rejectedData = rejectedRes.data || {};
 
-      const rawEvents = Array.isArray(data) ? data : [];
-      const formatted = rawEvents.map(e => ({
-        ...e,
-        id: e.id || e._id,
-        status: e.status || "pending",
-        type: e.type || e.event_type || "General",
-        title: e.title || e.event_name || "Untitled Event",
-        start_date: e.start_date || e.startDate || e.created_at,
-        end_date: e.end_date || e.endDate,
-        photos: e.photos || (e.image_url ? [e.image_url] : (e.cover_image ? [e.cover_image] : [])),
-        Host: e.Host || {
-          full_name: e.host_name || e.organizer_name || "Host",
-          email: e.host_email || "",
-          phone: e.host_phone || ""
-        }
-      }));
+      const pendingEvents = Array.isArray(pendingData) ? pendingData : (Array.isArray(pendingData.events) ? pendingData.events : (Array.isArray(pendingData.data) ? pendingData.data : []));
+      const approvedEvents = Array.isArray(approvedData) ? approvedData : (Array.isArray(approvedData.events) ? approvedData.events : (Array.isArray(approvedData.data) ? approvedData.data : []));
+      const rejectedEvents = Array.isArray(rejectedData) ? rejectedData : (Array.isArray(rejectedData.events) ? rejectedData.events : (Array.isArray(rejectedData.data) ? rejectedData.data : []));
 
-      setEvents(formatted);
+      // Add status property if missing
+      const formattedApproved = approvedEvents.map(e => ({ ...e, status: e.status || 'approved' }));
+      const formattedRejected = rejectedEvents.map(e => ({ ...e, status: e.status || 'rejected' }));
+      const formattedPending = pendingEvents.map(e => ({ ...e, status: e.status || 'pending' }));
+
+      // Deduplicate by ID and prioritize approved/rejected status over pending
+      const eventMap = new Map();
+      formattedPending.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, e);
+      });
+      formattedApproved.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, { ...e, status: 'approved' });
+      });
+      formattedRejected.forEach(e => {
+        if (e && e.id) eventMap.set(e.id, { ...e, status: 'rejected' });
+      });
+
+      setEvents(Array.from(eventMap.values()));
     } catch (err) {
       console.error("Failed to fetch events", err);
       setEvents([]);
@@ -253,16 +272,19 @@ const Events = () => {
 
   const fetchReviews = async () => {
     setLoadingReviews(true);
+    if (!token) {
+      setLoadingReviews(false);
+      return;
+    }
     try {
-      const { data, error } = await supabase
-        .from("event_reviews")
-        .select("*");
-
-      if (error) {
-        setReviews([]);
-      } else {
-        setReviews(Array.isArray(data) ? data : []);
-      }
+      const res = await axios.get(`${API_BASE}/events/reviews/admin/reviews`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = res.data;
+      setReviews(Array.isArray(data.reviews) ? data.reviews : []);
     } catch (err) {
       console.error("Failed to fetch reviews", err);
       setReviews([]);
@@ -314,20 +336,28 @@ const Events = () => {
 
   // --- ACTIONS ---
   const handleApprove = async (id) => {
+    if (!token) return;
     try {
-      const { error } = await supabase
-        .from("events")
-        .update({ status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", id);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
 
-      if (error) throw error;
+      let res;
+      try {
+        res = await axios.put(`${API_BASE}/events/admin/events/approve/${id}`, {}, { headers });
+      } catch {
+        res = await axios.put(`${API_BASE}/events/admin/approve/${id}`, {}, { headers });
+      }
 
-      setEvents(prevEvents =>
-        prevEvents.map(event =>
-          (event.id === id || event._id === id) ? { ...event, status: 'approved' } : event
-        )
-      );
-      setRefreshKey(prev => prev + 1);
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
+        setEvents(prevEvents =>
+          prevEvents.map(event =>
+            event.id === id ? { ...event, status: 'approved' } : event
+          )
+        );
+        setRefreshKey(prev => prev + 1);
+      }
     } catch (err) {
       console.error("Approval error:", err);
     }
@@ -339,46 +369,58 @@ const Events = () => {
   };
 
   const handleRejectConfirm = async () => {
-    if (!rejectionReason.trim() || !currentEventId) return;
+    if (!rejectionReason.trim() || !token) return;
 
     try {
-      const { error } = await supabase
-        .from("events")
-        .update({
-          status: "rejected",
-          rejection_reason: rejectionReason,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", currentEventId);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
+      const body = { rejection_reason: rejectionReason };
 
-      if (error) throw error;
+      let res;
+      try {
+        res = await axios.put(`${API_BASE}/events/admin/events/reject/${currentEventId}`, body, { headers });
+      } catch {
+        res = await axios.put(`${API_BASE}/events/admin/reject/${currentEventId}`, body, { headers });
+      }
 
-      setRejectModalOpen(false);
-      setRejectionReason("");
-      setEvents(prevEvents =>
-        prevEvents.map(event =>
-          (event.id === currentEventId || event._id === currentEventId) ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
-        )
-      );
-      setRefreshKey(prev => prev + 1);
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
+        setRejectModalOpen(false);
+        setRejectionReason("");
+        setEvents(prevEvents =>
+          prevEvents.map(event =>
+            event.id === currentEventId ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
+          )
+        );
+        setRefreshKey(prev => prev + 1);
+      }
     } catch (err) {
       console.error("Rejection error:", err);
     }
   };
 
   const handleDelete = async (id) => {
+    if (!token) return;
     if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
 
     try {
-      const { error } = await supabase
-        .from("events")
-        .delete()
-        .eq("id", id);
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      };
 
-      if (error) throw error;
+      let res;
+      try {
+        res = await axios.delete(`${API_BASE}/events/admin/events/delete/${id}`, { headers });
+      } catch {
+        res = await axios.delete(`${API_BASE}/events/admin/delete/${id}`, { headers });
+      }
 
-      setEvents(prevEvents => prevEvents.filter(event => (event.id !== id && event._id !== id)));
-      setRefreshKey(prev => prev + 1);
+      if (res && (res.status === 200 || res.status === 204 || res.data)) {
+        setEvents(prevEvents => prevEvents.filter(event => event.id !== id));
+        setRefreshKey(prev => prev + 1);
+      }
     } catch (err) {
       console.error("Deletion error:", err);
     }
@@ -394,11 +436,7 @@ const Events = () => {
     if (!imagePath) return null;
     if (imagePath.startsWith('http')) return imagePath;
     const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    if (supabaseUrl) {
-      return `${supabaseUrl}/storage/v1/object/public/${cleanPath}`;
-    }
-    return cleanPath;
+    return `${API_BASE}/${cleanPath}`;
   };
 
   const getStatusCount = (status) => {

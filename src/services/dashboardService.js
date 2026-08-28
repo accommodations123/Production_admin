@@ -1,181 +1,136 @@
-import { supabase } from "../lib/supabaseClient";
+import axios from "axios";
 
 /* ======================================================
-   DASHBOARD API (Direct Supabase Queries with Fallbacks)
+   AXIOS INSTANCE
 ====================================================== */
 
-const safeQuery = async (queryFn, defaultValue = {}) => {
-    try {
-        const result = await queryFn();
-        return result ?? defaultValue;
-    } catch (err) {
-        console.warn("Dashboard service query error, using fallback:", err);
-        return defaultValue;
+const API_URL =
+    import.meta.env.VITE_API_URL ||
+    "https://api.nextkinlife.live";
+
+const api = axios.create({
+    baseURL: API_URL,
+    timeout: 10000,
+    withCredentials: true,
+    headers: {
+        "Content-Type": "application/json",
+    },
+});
+
+api.interceptors.request.use(
+    (config) => {
+        config.headers = config.headers || {};
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (supabaseKey && !config.headers["apikey"]) {
+            config.headers["apikey"] = supabaseKey;
+        }
+
+        const token = localStorage.getItem("admin-auth");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        } else if (supabaseKey && !config.headers.Authorization) {
+            config.headers.Authorization = `Bearer ${supabaseKey}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem("admin-logged-in");
+            localStorage.removeItem("admin-role");
+            window.location.href = "/login";
+        }
+        return Promise.reject(error);
     }
-};
+);
+
+/* ======================================================
+   DASHBOARD API
+====================================================== */
 
 export const dashboardAPI = {
-    getAnalyticsSummary: async () => {
-        return safeQuery(async () => {
-            const { count: propertyCount } = await supabase
-                .from("properties")
-                .select("*", { count: "exact", head: true });
-            const { count: eventCount } = await supabase
-                .from("events")
-                .select("*", { count: "exact", head: true });
-            const { count: userCount } = await supabase
-                .from("profiles")
-                .select("*", { count: "exact", head: true });
+    getAnalyticsSummary: () =>
+        api.get("/analytics/summary").then((r) => r.data),
 
-            return {
-                success: true,
-                totalUsers: userCount || 0,
-                totalHosts: propertyCount || 0,
-                totalEvents: eventCount || 0,
-                activeBookings: 0,
-                revenue: 0,
-            };
-        }, { success: true, totalUsers: 0, totalHosts: 0, totalEvents: 0, activeBookings: 0, revenue: 0 });
-    },
+    getAnalyticsTimeseries: (event, range) =>
+        api
+            .get(`/analytics/timeseries?event=${event}&range=${range}`)
+            .then((r) => r.data),
 
-    getAnalyticsTimeseries: async (_event, _range) => {
-        return { success: true, data: [] };
-    },
+    getAnalyticsByLocation: (event) =>
+        api
+            .get(`/analytics/by-location?event=${event}`)
+            .then((r) => r.data),
 
-    getAnalyticsByLocation: async (_event) => {
-        return { success: true, data: [] };
-    },
+    getEventAnalyticsSummary: () =>
+        api.get("/eventanalytics/summary").then((r) => r.data),
 
-    getEventAnalyticsSummary: async () => {
-        return safeQuery(async () => {
-            const { count: totalEvents } = await supabase
-                .from("events")
-                .select("*", { count: "exact", head: true });
-            return {
-                success: true,
-                totalEvents: totalEvents || 0,
-                upcomingEvents: 0,
-                pastEvents: 0,
-                totalRegistrations: 0,
-            };
-        }, { success: true, totalEvents: 0, upcomingEvents: 0, pastEvents: 0, totalRegistrations: 0 });
-    },
+    getEventEngagementTimeseries: (type, days) =>
+        api
+            .get(`/eventanalytics/engagement?type=${type}&days=${days}`)
+            .then((r) => r.data),
 
-    getEventEngagementTimeseries: async (_type, _days) => {
-        return { success: true, data: [] };
-    },
+    getEventAnalyticsByLocation: () =>
+        api.get("/eventanalytics/by-location").then((r) => r.data),
 
-    getEventAnalyticsByLocation: async () => {
-        return { success: true, data: [] };
-    },
+    getBuySellOverview: (range) =>
+        api.get(`/buysellanalytics/overview?range=${range}`).then((r) => r.data),
 
-    getBuySellOverview: async (_range) => {
-        return safeQuery(async () => {
-            const { count: totalListings } = await supabase
-                .from("buy_sell")
-                .select("*", { count: "exact", head: true });
-            return {
-                success: true,
-                totalListings: totalListings || 0,
-                activeListings: totalListings || 0,
-                pendingApproval: 0,
-                soldListings: 0,
-            };
-        }, { success: true, totalListings: 0, activeListings: 0, pendingApproval: 0, soldListings: 0 });
-    },
+    getBuySellDailyTrend: (range) =>
+        api.get(`/buysellanalytics/trend?range=${range}`).then((r) => r.data),
 
-    getBuySellDailyTrend: async (_range) => {
-        return { success: true, data: [] };
-    },
+    getBuySellByCountry: () =>
+        api.get("/buysellanalytics/country").then((r) => r.data),
 
-    getBuySellByCountry: async () => {
-        return { success: true, data: [] };
-    },
+    getBuySellApprovalRatio: () =>
+        api.get("/buysellanalytics/ratio").then((r) => r.data),
 
-    getBuySellApprovalRatio: async () => {
-        return { success: true, approved: 0, pending: 0, rejected: 0 };
-    },
+    getTravelOverview: (range) =>
+        api.get(`/travelanalytics/analytics/travel/overview?range=${range}`).then((r) => r.data),
 
-    getTravelOverview: async (_range) => {
-        return { success: true, totalTrips: 0, activeMatches: 0, completedTrips: 0 };
-    },
+    getTravelDailyTrend: (range) =>
+        api.get(`/travelanalytics/analytics/travel/trend?range=${range}`).then((r) => r.data),
 
-    getTravelDailyTrend: async (_range) => {
-        return { success: true, data: [] };
-    },
+    getTravelByCountry: () =>
+        api.get("/travelanalytics/analytics/travel/countries").then((r) => r.data),
 
-    getTravelByCountry: async () => {
-        return { success: true, data: [] };
-    },
+    getTravelMatchConversion: () =>
+        api.get("/travelanalytics/analytics/travel/match-conversion").then((r) => r.data),
 
-    getTravelMatchConversion: async () => {
-        return { success: true, conversionRate: 0, totalRequests: 0, matchedRequests: 0 };
-    },
 
     // Career Analytics
-    getCareerJobsOverview: async () => {
-        return safeQuery(async () => {
-            const { count: totalJobs } = await supabase
-                .from("jobs")
-                .select("*", { count: "exact", head: true });
-            const { count: totalApplications } = await supabase
-                .from("job_applications")
-                .select("*", { count: "exact", head: true });
-            return {
-                success: true,
-                totalJobs: totalJobs || 0,
-                activeJobs: totalJobs || 0,
-                totalApplications: totalApplications || 0,
-                shortlisted: 0,
-            };
-        }, { success: true, totalJobs: 0, activeJobs: 0, totalApplications: 0, shortlisted: 0 });
-    },
+    getCareerJobsOverview: () =>
+        api.get("/carreranalytics/jobs/overview").then((r) => r.data),
 
-    getCareerApplicationsFunnel: async () => {
-        return { success: true, data: [] };
-    },
+    getCareerApplicationsFunnel: () =>
+        api.get("/carreranalytics/applications/funnel").then((r) => r.data),
 
-    getCareerApplicationsTrend: async (_days = 30) => {
-        return { success: true, data: [] };
-    },
+    getCareerApplicationsTrend: (days = 30) =>
+        api.get(`/carreranalytics/applications/trend?days=${days}`).then((r) => r.data),
 
-    getCareerMostViewedJobs: async () => {
-        return { success: true, data: [] };
-    },
+    getCareerMostViewedJobs: () =>
+        api.get("/carreranalytics/jobs/top-viewed").then((r) => r.data),
 
-    getCareerAdminActions: async () => {
-        return { success: true, data: [] };
-    },
+    getCareerAdminActions: () =>
+        api.get("/carreranalytics/admin/actions").then((r) => r.data),
 
     // Users Analytics
-    getUsersOverview: async () => {
-        return safeQuery(async () => {
-            const { count: totalUsers } = await supabase
-                .from("profiles")
-                .select("*", { count: "exact", head: true });
-            return {
-                success: true,
-                totalUsers: totalUsers || 0,
-                verifiedUsers: totalUsers || 0,
-                activeToday: 0,
-                newThisMonth: 0,
-            };
-        }, { success: true, totalUsers: 0, verifiedUsers: 0, activeToday: 0, newThisMonth: 0 });
-    },
+    getUsersOverview: () =>
+        api.get("/users/analytics/overview").then((r) => r.data),
 
-    getUserSignupTrend: async (_days = 30) => {
-        return { success: true, data: [] };
-    },
+    getUserSignupTrend: (days = 30) =>
+        api.get(`/users/analytics/signup-trend?days=${days}`).then((r) => r.data),
 
-    getOtpFunnel: async () => {
-        return { success: true, data: [] };
-    },
+    getOtpFunnel: () =>
+        api.get("/users/analytics/otp-funnel").then((r) => r.data),
 
-    getDailyActiveUsers: async (_days = 30) => {
-        return { success: true, data: [] };
-    },
+    getDailyActiveUsers: (days = 30) =>
+        api.get(`/users/analytics/daily-active?days=${days}`).then((r) => r.data),
 
-    getUsersByCountry: async () => {
-        return { success: true, data: [] };
-    },
+    getUsersByCountry: () =>
+        api.get("/users/analytics/by-country").then((r) => r.data),
 };

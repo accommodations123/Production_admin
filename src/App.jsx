@@ -26,7 +26,7 @@ import ManageAdmins from "./pages/ManageAdmins"
 import Settings from "./pages/Settings"
 import ActivityLog from "./pages/ActivityLog"
 
-import { useAdmin, AdminProvider } from "./context/AdminContext"
+import { useAdmin, AdminProvider } from "./context/AdminContext";
 
 /* ═══════════════════════════════════════════════════════════════════════
    ROLE-BASED ROUTE GUARD WRAPPER
@@ -38,7 +38,6 @@ function RoleGuard({ roles, children }) {
   const currentRole = admin?.role;
 
   if (!roles || roles.length === 0) return children;
-  if (currentRole === "super_admin") return children;
 
   if (!currentRole || !roles.includes(currentRole)) {
     // Redirect unauthorized users to their default page
@@ -68,7 +67,7 @@ function AppContent() {
     : "/login";
 
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <Routes>
 
         {/* DEFAULT ROUTE */}

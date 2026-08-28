@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import {
     UserPlus,
     Users,
@@ -17,7 +18,13 @@ import {
     Mail,
     User,
 } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const API_URL =
+    import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 const ROLE_CONFIG = {
     super_admin: {
@@ -174,40 +181,19 @@ function CreateAdminModal({ isOpen, onClose, onCreated }) {
 
         setLoading(true);
         try {
-            const { data, error: signUpErr } = await supabase.auth.signUp({
-                email: form.email,
-                password: form.password,
-                options: {
-                    data: {
-                        name: form.name,
-                        full_name: form.name,
-                        role: form.role,
-                    }
-                }
+            const res = await axios.post(`${API_URL}/admin/register`, form, {
+                headers: getAuthHeaders(),
             });
 
-            if (signUpErr) throw signUpErr;
+            const data = res.data;
 
-            if (data.user) {
-                await supabase.from("profiles").upsert({
-                    id: data.user.id,
-                    email: form.email,
-                    name: form.name,
-                    full_name: form.name,
-                    role: form.role,
-                    status: "active",
-                    updated_at: new Date().toISOString()
-                });
-            }
-
-            onCreated({ name: form.name, email: form.email, role: form.role });
+            onCreated(data.data || data.admin);
             setForm({ name: "", email: "", password: "", role: "admin" });
             onClose();
         } catch (err) {
-            setError(err.message || "Failed to create account. Please try again.");
-        } finally {
-            setLoading(false);
+            setError(err.response?.data?.message || "Network error. Please try again.");
         }
+        setLoading(false);
     };
 
     if (!isOpen) return null;
@@ -452,27 +438,21 @@ export default function ManageAdmins() {
     const [toast, setToast] = useState(null);
     const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
 
-    // ── Fetch admins via Supabase ──────────────────────────────────────
-    const fetchAdmins = async () => {
+    // ── Fetch admins ──────────────────────────────────────────────────
+    const fetchAdmins = async (page = 1) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from("profiles")
-                .select("*")
-                .order("created_at", { ascending: false });
+            const res = await axios.get(`${API_URL}/admin/admins?page=${page}&limit=20`, {
+                headers: getAuthHeaders(),
+            });
 
-            if (error) {
-                console.warn("Supabase fetch admins note:", error);
-            }
-
-            const adminList = Array.isArray(data) ? data : [];
-            setAdmins(adminList);
-            setPagination({ page: 1, totalPages: 1, total: adminList.length });
+            const data = res.data;
+            setAdmins(data.data || []);
+            setPagination(data.pagination || { page: 1, totalPages: 1, total: 0 });
         } catch (err) {
-            showToast(err.message || "Error fetching admins", "error");
-        } finally {
-            setLoading(false);
+            showToast(err.response?.data?.message || "Network error fetching admins", "error");
         }
+        setLoading(false);
     };
 
     useEffect(() => {

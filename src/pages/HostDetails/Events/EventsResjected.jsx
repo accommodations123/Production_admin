@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabaseClient';
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 function EventRejected() {
     const [events, setEvents] = useState([]);
@@ -10,19 +12,15 @@ function EventRejected() {
         const fetchEvents = async () => {
             try {
                 setLoading(true);
-                const { data, error } = await supabase
-                    .from("events")
-                    .select("*")
-                    .eq("status", "rejected")
-                    .order("created_at", { ascending: false });
-
-                if (error) {
-                    console.warn("Supabase fetch rejected events note:", error);
-                }
-                setEvents(Array.isArray(data) ? data : []);
+                const token = localStorage.getItem("admin-auth");
+                const response = await axios.get(`${BASE_URL}/events/admin/events/rejected`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const d = response.data;
+                const list = Array.isArray(d) ? d : (d?.events || d?.data || []);
+                setEvents(list);
             } catch (e) {
                 console.error(e);
-                setEvents([]);
             } finally {
                 setLoading(false);
             }
@@ -87,7 +85,7 @@ function EventRejected() {
                                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">System Info</h4>
                                     <ul className="space-y-3 text-sm">
                                         <li><span className="text-gray-500 block text-xs">ID</span>{selectedEvent.id}</li>
-                                        <li><span className="text-gray-500 block text-xs">Rejected On</span>{(selectedEvent.updated_at || selectedEvent.updatedAt || selectedEvent.created_at) ? new Date(selectedEvent.updated_at || selectedEvent.updatedAt || selectedEvent.created_at).toLocaleDateString() : 'N/A'}</li>
+                                        <li><span className="text-gray-500 block text-xs">Rejected On</span>{new Date(selectedEvent.updatedAt).toLocaleDateString()}</li>
                                     </ul>
                                 </div>
                             </div>

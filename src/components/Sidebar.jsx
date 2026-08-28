@@ -125,11 +125,7 @@ const Sidebar = () => {
       {/* ── Navigation ─────────────────────────────────────── */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar px-3 pt-3 pb-2">
         {MENU_SECTIONS.map((section) => {
-          const visibleItems = section.items.filter(item => {
-            if (!item.roles || item.roles.length === 0) return true;
-            if (currentRole === 'super_admin') return true;
-            return item.roles.includes(currentRole) || item.roles.includes('admin');
-          });
+          const visibleItems = section.items.filter(item => item.roles.includes(currentRole));
           if (visibleItems.length === 0) return null;
 
           return (

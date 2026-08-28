@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import axios from "axios";
 import {
   Box,
   Typography,
@@ -40,30 +41,35 @@ import {
   Stack,
 } from "@mui/material";
 import {
-  Search,
-  Close,
-  Refresh,
-  FilterList,
-  CalendarToday,
-  FlightTakeoff,
-  FlightLand,
-  AirlineSeatReclineNormal,
-  Block,
-  Cancel,
-  Info,
-  ErrorOutline,
-  People,
-  Schedule,
-  CheckCircle,
-  Flight,
-  Check,
-} from "@mui/icons-material";
+  MdSearch as Search,
+  MdClose as Close,
+  MdRefresh as Refresh,
+  MdFilterList as FilterList,
+  MdCalendarToday as CalendarToday,
+  MdFlightTakeoff as FlightTakeoff,
+  MdFlightLand as FlightLand,
+  MdAirlineSeatReclineNormal as AirlineSeatReclineNormal,
+  MdBlock as Block,
+  MdCancel as Cancel,
+  MdInfo as Info,
+  MdErrorOutline as ErrorOutline,
+  MdPeople as People,
+  MdSchedule as Schedule,
+  MdCheckCircle as CheckCircle,
+  MdFlight as Flight,
+  MdCheck as Check,
+} from "react-icons/md";
 
 // Assuming these are in your project directory
 import TripDetailsModal from "./TripDetailsModal";
 import TravelDashboard from "./TravelDashboard";
 import { formatUTCDate, formatUTCTime } from "../utils/timezone";
-import { supabase } from "../lib/supabaseClient";
+
+/* =====================
+   API CONFIG
+===================== */
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const TOKEN = localStorage.getItem("admin-auth");
 
 /* =====================
    MAIN COMPONENT
@@ -87,21 +93,16 @@ export default function TravelAdmin() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   /* =====================
-     FETCH APIs VIA SUPABASE
+     FETCH APIs
   ===================== */
   const fetchTrips = async () => {
     try {
-      const { data, error } = await supabase
-        .from("travel_trips")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.warn("Supabase travel_trips fetch note:", error);
-      }
-      const results = Array.isArray(data) ? data : [];
-      setTrips(results);
-      return results;
+      const res = await axios.get(`${BASE_URL}/travel/admin/trips`, {
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+      const data = res.data;
+      setTrips(data.results || []);
+      return data.results || [];
     } catch (err) {
       console.error("Error fetching trips:", err);
       return [];
@@ -139,21 +140,30 @@ export default function TravelAdmin() {
      ACTION HANDLERS
   ===================== */
 
+  const handleAction = async (url, method, successMsg) => {
+    setLoading(true);
+    try {
+      const res = await axios({
+        url,
+        method,
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+
+      setSnackbar({ open: true, message: successMsg, severity: 'success' });
+      fetchAll(); // Refresh to see cascading updates (e.g. cancelled matches)
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'Action failed';
+      setSnackbar({ open: true, message: errMsg, severity: 'error' });
+    } finally {
+      setLoading(false);
+      setConfirmDialog({ ...confirmDialog, open: false });
+    }
+  };
+
   const initiateApproveTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: async () => {
-        try {
-          const { error } = await supabase.from("travel_trips").update({ status: "approved" }).eq("id", tripId);
-          if (error) throw error;
-          setSnackbar({ open: true, message: "Trip approved successfully", severity: "success" });
-          fetchAll();
-        } catch (err) {
-          setSnackbar({ open: true, message: err.message || "Failed to approve trip", severity: "error" });
-        } finally {
-          setConfirmDialog(prev => ({ ...prev, open: false }));
-        }
-      },
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/approve`, 'PUT', 'Trip approved successfully'),
       title: 'Approve Trip',
       message: 'Are you sure you want to approve this trip?'
     });
@@ -162,18 +172,7 @@ export default function TravelAdmin() {
   const initiateRejectTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: async () => {
-        try {
-          const { error } = await supabase.from("travel_trips").update({ status: "rejected" }).eq("id", tripId);
-          if (error) throw error;
-          setSnackbar({ open: true, message: "Trip rejected successfully", severity: "success" });
-          fetchAll();
-        } catch (err) {
-          setSnackbar({ open: true, message: err.message || "Failed to reject trip", severity: "error" });
-        } finally {
-          setConfirmDialog(prev => ({ ...prev, open: false }));
-        }
-      },
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/reject`, 'PUT', 'Trip rejected successfully'),
       title: 'Reject Trip',
       message: 'Are you sure you want to reject this trip?'
     });
@@ -182,18 +181,7 @@ export default function TravelAdmin() {
   const initiateCancelTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: async () => {
-        try {
-          const { error } = await supabase.from("travel_trips").update({ status: "cancelled" }).eq("id", tripId);
-          if (error) throw error;
-          setSnackbar({ open: true, message: "Trip cancelled successfully", severity: "success" });
-          fetchAll();
-        } catch (err) {
-          setSnackbar({ open: true, message: err.message || "Failed to cancel trip", severity: "error" });
-        } finally {
-          setConfirmDialog(prev => ({ ...prev, open: false }));
-        }
-      },
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/cancel`, 'PUT', 'Trip cancelled successfully'),
       title: 'Cancel Trip',
       message: 'Are you sure? This will cancel the trip.'
     });
@@ -202,20 +190,9 @@ export default function TravelAdmin() {
   const initiateBlockHost = (hostId) => {
     setConfirmDialog({
       open: true,
-      action: async () => {
-        try {
-          const { error } = await supabase.from("profiles").update({ is_blocked: true, status: "blocked" }).eq("id", hostId);
-          if (error) throw error;
-          setSnackbar({ open: true, message: "Host blocked", severity: "success" });
-          fetchAll();
-        } catch (err) {
-          setSnackbar({ open: true, message: err.message || "Failed to block host", severity: "error" });
-        } finally {
-          setConfirmDialog(prev => ({ ...prev, open: false }));
-        }
-      },
+      action: () => handleAction(`${BASE_URL}/travel/admin/hosts/${hostId}/block`, 'PUT', 'Host blocked. All trips cancelled.'),
       title: 'Block Host',
-      message: 'WARNING: This will block the host. This action is irreversible.'
+      message: 'WARNING: This will block the host and CANCEL ALL their trips. This action is irreversible.'
     });
   };
 

@@ -1,404 +1,118 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { 
-    Phone, Mail, MessageCircle, MapPin, Globe, 
-    Facebook, Instagram, Linkedin, Home, XCircle, 
-    Calendar, User, AlertCircle, RefreshCw 
-} from 'lucide-react';
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 function HostRejected() {
     const [hosts, setHosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedHost, setSelectedHost] = useState(null);
-    const [actionLoading, setActionLoading] = useState(false);
-
-    const parseJson = (val) => {
-        if (!val) return {};
-        if (typeof val === 'object') return val;
-        if (typeof val === 'string') {
-            try { return JSON.parse(val); } catch { return {}; }
-        }
-        return {};
-    };
-
-    const normalizeHost = (h, allProps = []) => {
-        const raw = h || {};
-        const addr = parseJson(raw.address || raw.location);
-        const contact = parseJson(raw.contact || raw.contact_info);
-        const socials = parseJson(raw.socials || raw.social_links || raw.socialMedia);
-        const verification = parseJson(raw.verification);
-        const meta = parseJson(raw.metadata || raw.meta || raw.raw_user_meta_data);
-
-        const id = raw.id || raw._id || '';
-        const email = raw.email || raw.user_email || raw.contact_email || raw.mail || contact.email || meta.email || '';
-        const fullName = raw.full_name || `${raw.firstName || ''} ${raw.lastName || ''}`.trim() || raw.name || raw.displayName || raw.userName || raw.user_name || raw.host_name || verification.full_name || meta.full_name || meta.name || '';
-        const phone = raw.phone || raw.phone_number || raw.phoneNumber || raw.mobile || raw.mobile_number || raw.contact || raw.contact_number || raw.tel || contact.phone || verification.phone || meta.phone || '';
-        const whatsapp = raw.whatsapp || raw.whatsApp || raw.whatsapp_number || raw.whatsappNumber || raw.wa || raw.seller_whatsapp || contact.whatsapp || socials.whatsapp || '';
-        const streetAddress = raw.street_address || raw.street || (typeof raw.address === 'string' ? raw.address : '') || raw.streetAddress || raw.address_line_1 || raw.address1 || raw.area || (typeof addr === 'object' ? (addr.street || addr.street_address || addr.address || '') : '');
-        const city = raw.city || raw.location_city || raw.town || (typeof addr === 'object' ? addr.city : '') || '';
-        const state = raw.state || raw.province || raw.region || raw.state_province || (typeof addr === 'object' ? (addr.state || addr.province) : '') || '';
-        const zipCode = raw.zip_code || raw.zipCode || raw.zip || raw.postal_code || raw.postalCode || raw.pincode || raw.pin || (typeof addr === 'object' ? (addr.zip_code || addr.zipCode || addr.postal_code) : '') || '';
-        const country = raw.country || raw.country_name || raw.nation || (typeof addr === 'object' ? addr.country : '') || '';
-        const facebook = raw.facebook || raw.facebook_url || raw.facebookUrl || socials.facebook || '';
-        const instagram = raw.instagram || raw.instagram_url || raw.instagramUrl || socials.instagram || '';
-        const linkedin = raw.linkedin || raw.linkedin_url || socials.linkedin || '';
-        const website = raw.website || raw.portfolio_url || raw.portfolio || meta.website || '';
-        const bio = raw.bio || raw.about || raw.description || raw.about_me || meta.bio || '';
-        const headline = raw.headline || raw.occupation || raw.profession || raw.role || '';
-        const rejectionReason = raw.rejection_reason || raw.rejectionReason || 'Application criteria was not satisfied';
-
-        // Match properties for this host
-        const userProperties = allProps.filter(p => 
-            (id && (p.host_id === id || p.user_id === id || p.owner_id === id)) ||
-            (email && (p.email?.toLowerCase() === email.toLowerCase() || p.owner_email?.toLowerCase() === email.toLowerCase())) ||
-            (fullName && fullName !== 'Host' && (p.host_name?.toLowerCase() === fullName.toLowerCase() || p.hostName?.toLowerCase() === fullName.toLowerCase()))
-        );
-
-        const firstProp = userProperties[0] || {};
-        const finalName = fullName || firstProp.host_name || firstProp.hostName || firstProp.user_name || (email ? email.split('@')[0] : 'Host Applicant');
-
-        return {
-            ...raw,
-            id,
-            full_name: finalName,
-            email: email || firstProp.email || '',
-            phone: phone || firstProp.phone || '',
-            whatsapp: whatsapp || '',
-            street_address: streetAddress || firstProp.address || firstProp.area || '',
-            city: city || firstProp.city || '',
-            state: state || firstProp.state || '',
-            zip_code: zipCode || firstProp.zip_code || '',
-            country: country || firstProp.country || '',
-            facebook,
-            instagram,
-            linkedin,
-            website,
-            bio,
-            headline,
-            rejection_reason: rejectionReason,
-            properties: userProperties,
-            properties_count: userProperties.length
-        };
-    };
-
-    const fetchHosts = async () => {
-        try {
-            setLoading(true);
-            const [profilesRes, propsRes] = await Promise.all([
-                supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-                supabase.from("properties").select("*").order("created_at", { ascending: false })
-            ]);
-
-            const profilesData = Array.isArray(profilesRes.data) ? profilesRes.data : [];
-            const propsData = Array.isArray(propsRes.data) ? propsRes.data : [];
-
-            // Rejected hosts only
-            const rejectedProfiles = profilesData.filter(p => {
-                if (p.status !== "rejected") return false;
-
-                const userProperties = propsData.filter(prop => 
-                    (p.id && (prop.host_id === p.id || prop.user_id === p.id || prop.owner_id === p.id)) ||
-                    (p.email && (prop.email?.toLowerCase() === p.email.toLowerCase() || prop.owner_email?.toLowerCase() === p.email.toLowerCase()))
-                );
-                const hasProperties = userProperties.length > 0;
-                const isHostRole = p.role === "host" || p.is_host === true;
-                const hasHostDocs = !!(p.id_proof || p.document_url);
-
-                return isHostRole || hasProperties || hasHostDocs;
-            });
-            const formatted = rejectedProfiles.map(h => normalizeHost(h, propsData));
-
-            setHosts(formatted);
-        } catch (err) {
-            console.error("Error fetching rejected hosts:", err);
-            setHosts([]);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     useEffect(() => {
+        const fetchHosts = async () => {
+            try {
+                setLoading(true);
+                const token = localStorage.getItem("admin-auth");
+                const response = await axios.get(`${BASE_URL}/host/admin/hosts/rejected`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setHosts(response.data.hosts || []);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
         fetchHosts();
     }, []);
 
-    const handleReconsider = async () => {
-        if (!selectedHost) return;
-        try {
-            setActionLoading(true);
-            const hostId = selectedHost.id || selectedHost._id;
-            
-            let query = supabase
-                .from("profiles")
-                .update({ status: "pending", is_approved: false, rejection_reason: null, updated_at: new Date().toISOString() });
+    const displayValue = (val) => val ? val : <span className="italic text-gray-400">N/A</span>;
 
-            if (hostId) {
-                query = query.eq("id", hostId);
-            } else if (selectedHost.email) {
-                query = query.eq("email", selectedHost.email);
-            }
-
-            const { error: reconsiderErr } = await query;
-            if (reconsiderErr) {
-                console.error("Reconsider error:", reconsiderErr);
-                throw reconsiderErr;
-            }
-
-            setHosts(prev => prev.filter(h => (h.id !== hostId && h._id !== hostId)));
-            setSelectedHost(null);
-        } catch (e) {
-            console.error("Reconsider error:", e);
-            alert(e.message || 'Failed to move to pending');
-        } finally {
-            setActionLoading(false);
-        }
-    };
-
-    const displayValue = (val) => val && String(val).trim() ? val : <span className="italic text-gray-400">N/A</span>;
-
-    if (loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[300px]">
-                <div className="w-10 h-10 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin"></div>
-                <p className="mt-3 text-sm text-slate-500 font-medium">Loading rejected hosts...</p>
-            </div>
-        );
-    }
-
-    if (hosts.length === 0) {
-        return (
-            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
-                <XCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h3 className="text-base font-semibold text-slate-700">No Rejected Hosts</h3>
-                <p className="text-sm text-slate-400 mt-1">There are no rejected host applications on record.</p>
-            </div>
-        );
-    }
+    if (loading) return <div className="text-center py-12">Loading...</div>;
+    if (hosts.length === 0) return <div className="text-center py-12 text-gray-500">No rejected hosts.</div>;
 
     return (
         <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {hosts.map((host) => (
-                    <div key={host.id || host.email} className="bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between opacity-85 hover:opacity-100">
-                        <div className="p-6">
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="flex items-center space-x-3.5 min-w-0">
-                                    <img 
-                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(host.full_name)}&background=e11d48&color=fff&size=100`} 
-                                        alt={host.full_name}
-                                        className="w-13 h-13 rounded-full border-2 border-rose-100 shrink-0 object-cover grayscale" 
-                                    />
-                                    <div className="min-w-0">
-                                        <h3 className="text-base font-bold text-slate-900 truncate" title={host.full_name}>{host.full_name}</h3>
-                                        <p className="text-xs text-slate-500 truncate" title={host.email}>{host.email || 'No email provided'}</p>
-                                        {(host.city || host.country) && (
-                                            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                                <span className="truncate">{[host.city, host.country].filter(Boolean).join(', ')}</span>
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 shrink-0 inline-flex items-center gap-1">
-                                    <XCircle className="w-3 h-3" /> Rejected
-                                </span>
-                            </div>
-
-                            {/* Rejection Snippet */}
-                            <div className="mt-3 p-2.5 bg-rose-50/70 rounded-lg text-xs text-rose-800 border border-rose-100 line-clamp-2">
-                                <span className="font-semibold">Reason:</span> {host.rejection_reason}
-                            </div>
-
-                            <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                    <div key={host.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col opacity-75 hover:opacity-100">
+                        <div className="p-6 flex items-start justify-between border-b border-gray-50">
+                            <div className="flex items-center space-x-4">
+                                <img src={`https://ui-avatars.com/api/?name=${host.full_name}&background=random`} className="w-14 h-14 rounded-full border-2 border-gray-100 grayscale" />
                                 <div>
-                                    <span className="text-slate-400 block text-[11px]">Phone</span>
-                                    <span className="font-medium truncate block">{host.phone || 'N/A'}</span>
-                                </div>
-                                <div>
-                                    <span className="text-slate-400 block text-[11px]">Listings</span>
-                                    <span className="font-medium text-slate-600 block">{host.properties_count || 0} Properties</span>
+                                    <h3 className="text-lg font-semibold text-gray-900">{host.full_name}</h3>
+                                    <p className="text-sm text-gray-500">{host.email}</p>
                                 </div>
                             </div>
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>
                         </div>
-
                         <div className="p-6 pt-0">
-                            <button 
-                                onClick={() => setSelectedHost(host)} 
-                                className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-sm rounded-xl border border-rose-200 transition-colors"
-                            >
-                                View Rejection Details
-                            </button>
+                            <button onClick={() => setSelectedHost(host)} className="w-full py-2 border border-red-200 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100">View Reason</button>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* MODAL */}
+            {/* MODAL WITH ALL JSON FIELDS */}
             {selectedHost && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col relative z-50 border border-slate-100">
-                        {/* Header */}
-                        <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-center rounded-t-2xl z-10">
-                            <div className="flex items-center gap-2.5">
-                                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-                                    <User className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-slate-800">Rejected Host Details</h2>
-                                    <p className="text-xs text-slate-400">Review rejection notes and applicant records</p>
-                                </div>
-                            </div>
-                            <button 
-                                onClick={() => setSelectedHost(null)} 
-                                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 text-xl font-bold transition-colors"
-                            >
-                                &times;
-                            </button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto flex flex-col relative z-50">
+                        <div className="sticky top-0 bg-white border-b border-gray-100 p-6 flex justify-between items-center rounded-t-2xl z-10">
+                            <h2 className="text-xl font-bold text-gray-800">Rejection Details</h2>
+                            <button onClick={() => setSelectedHost(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                         </div>
-
-                        <div className="p-6 space-y-6">
-                            {/* Profile Hero */}
-                            <div className="flex items-center space-x-5 bg-gradient-to-br from-rose-50/70 to-pink-50/50 p-5 rounded-2xl border border-rose-100/60">
-                                <img 
-                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(selectedHost.full_name)}&background=e11d48&color=fff&size=128`} 
-                                    alt={selectedHost.full_name}
-                                    className="w-18 h-18 rounded-2xl border-4 border-white shadow-sm object-cover shrink-0 grayscale" 
-                                />
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="text-xl font-bold text-slate-900">{selectedHost.full_name}</h3>
-                                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-600 text-white shadow-sm inline-flex items-center gap-1">
-                                            <XCircle className="w-3 h-3" /> Rejected
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-slate-600 mt-0.5">{selectedHost.email || 'No email on record'}</p>
-                                    {selectedHost.headline && (
-                                        <p className="text-xs font-medium text-slate-700 bg-rose-100/60 px-2 py-0.5 rounded mt-1.5 inline-block">
-                                            {selectedHost.headline}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* REJECTION REASON BANNER */}
-                            <div className="p-4 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-3">
-                                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="p-6 space-y-8">
+                            <div className="flex items-center space-x-6">
+                                <img src={`https://ui-avatars.com/api/?name=${selectedHost.full_name}&background=random&size=128`} className="w-20 h-20 rounded-full border-4 border-red-50 grayscale" />
                                 <div>
-                                    <h4 className="text-xs font-bold text-rose-900 uppercase tracking-wide">Reason for Rejection</h4>
-                                    <p className="text-sm text-rose-800 mt-0.5 font-medium leading-relaxed">
-                                        {selectedHost.rejection_reason}
-                                    </p>
+                                    <h3 className="text-2xl font-bold text-gray-900">{selectedHost.full_name}</h3>
+                                    <p className="text-gray-500">{selectedHost.email}</p>
                                 </div>
                             </div>
 
-                            {/* Two-Column Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* CONTACT */}
-                                <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-100 space-y-3">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-1.5">
-                                        <Phone className="w-3.5 h-3.5 text-slate-400" /> Contact Information
-                                    </h4>
-                                    <ul className="space-y-2.5 text-sm">
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Email</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.email)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Phone</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.phone)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">WhatsApp</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.whatsapp)}</span>
-                                        </li>
+                            {/* Rejection Reason Section */}
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-100">
+                                <h4 className="text-sm font-bold text-red-800 mb-2">Reason for Rejection:</h4>
+                                <p className="text-sm text-red-700">{selectedHost.rejection_reason || "No specific reason provided."}</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">Contact</h4>
+                                    <ul className="space-y-3 text-sm">
+                                        <li><span className="text-gray-500 block text-xs">Email</span>{selectedHost.email}</li>
+                                        <li><span className="text-gray-500 block text-xs">Phone</span>{displayValue(selectedHost.phone)}</li>
+                                        <li><span className="text-gray-500 block text-xs">WhatsApp</span>{displayValue(selectedHost.whatsapp)}</li>
                                     </ul>
                                 </div>
-
-                                {/* ADDRESS */}
-                                <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-100 space-y-3">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-1.5">
-                                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> Address & Location
-                                    </h4>
-                                    <ul className="space-y-2.5 text-sm">
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Street Address</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.street_address)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">City</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.city)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">State / Region</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.state)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Zip / Postal Code</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.zip_code)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Country</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.country)}</span>
-                                        </li>
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">Address</h4>
+                                    <ul className="space-y-3 text-sm">
+                                        <li><span className="text-gray-500 block text-xs">Street</span>{displayValue(selectedHost.street_address)}</li>
+                                        <li><span className="text-gray-500 block text-xs">City</span>{displayValue(selectedHost.city)}</li>
+                                        <li><span className="text-gray-500 block text-xs">State</span>{displayValue(selectedHost.state)}</li>
+                                        <li><span className="text-gray-500 block text-xs">Zip Code</span>{displayValue(selectedHost.zip_code)}</li>
+                                        <li><span className="text-gray-500 block text-xs">Country</span>{displayValue(selectedHost.country)}</li>
                                     </ul>
                                 </div>
-
-                                {/* SOCIAL MEDIA */}
-                                <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-100 space-y-3">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-1.5">
-                                        <Globe className="w-3.5 h-3.5 text-slate-400" /> Social Media
-                                    </h4>
-                                    <ul className="space-y-2.5 text-sm">
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Facebook</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.facebook)}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Instagram</span>
-                                            <span className="text-slate-800 font-medium">{displayValue(selectedHost.instagram)}</span>
-                                        </li>
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">Social Media</h4>
+                                    <ul className="space-y-3 text-sm">
+                                        <li><span className="text-gray-500 block text-xs">Facebook</span>{displayValue(selectedHost.facebook)}</li>
+                                        <li><span className="text-gray-500 block text-xs">Instagram</span>{displayValue(selectedHost.instagram)}</li>
                                     </ul>
                                 </div>
-
-                                {/* SYSTEM INFO */}
-                                <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-100 space-y-3">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-slate-400" /> Application Details
-                                    </h4>
-                                    <ul className="space-y-2.5 text-sm">
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Host / Profile ID</span>
-                                            <span className="text-slate-800 font-mono text-xs break-all">{selectedHost.id || 'N/A'}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Application Date</span>
-                                            <span className="text-slate-800 font-medium">{selectedHost.created_at ? new Date(selectedHost.created_at).toLocaleString() : 'N/A'}</span>
-                                        </li>
-                                        <li>
-                                            <span className="text-slate-400 block text-xs">Last Updated</span>
-                                            <span className="text-slate-800 font-medium">{selectedHost.updated_at ? new Date(selectedHost.updated_at).toLocaleString() : 'N/A'}</span>
-                                        </li>
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider border-b pb-2">System Info</h4>
+                                    <ul className="space-y-3 text-sm">
+                                        <li><span className="text-gray-500 block text-xs">Created At</span>{selectedHost.created_at ? new Date(selectedHost.created_at).toLocaleString() : 'N/A'}</li>
+                                        <li><span className="text-gray-500 block text-xs">Updated At</span>{selectedHost.updated_at ? new Date(selectedHost.updated_at).toLocaleString() : 'N/A'}</li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Modal Footer */}
-                        <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 px-6 flex items-center justify-between rounded-b-2xl">
-                            <button 
-                                onClick={() => setSelectedHost(null)} 
-                                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors"
-                            >
-                                Close
-                            </button>
-
-                            <button 
-                                onClick={handleReconsider}
-                                disabled={actionLoading}
-                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} /> 
-                                Move Back to Pending
-                            </button>
+                        <div className="sticky bottom-0 bg-white border-t border-gray-100 p-6 flex justify-end rounded-b-2xl">
+                            <button onClick={() => setSelectedHost(null)} className="px-6 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">Close</button>
                         </div>
                     </div>
                 </div>
@@ -406,5 +120,4 @@ function HostRejected() {
         </>
     );
 }
-
 export default HostRejected;

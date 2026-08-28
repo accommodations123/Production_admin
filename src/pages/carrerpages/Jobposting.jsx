@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import {
@@ -9,9 +10,23 @@ import {
     XCircleIcon,
     TrashIcon,
 } from "@heroicons/react/24/outline";
-import { supabase } from "../../lib/supabaseClient";
+
+
+const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const api = axios.create({
+    baseURL: BASE_URL,
+    withCredentials: true,
+});
 
 const COUNTRY_OPTIONS = ["United States of America", "South Africa", "India",];
+
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem("admin-auth");
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
 
 /* =====================================================
    INITIAL FORM STATE
@@ -153,23 +168,18 @@ const JobsTab = () => {
     const currencySymbol = getCurrencySymbol(formData.location);
 
     /* =====================================================
-       FETCH JOBS (GET) - Persists on Refresh via Supabase
+       FETCH JOBS (GET) - Persists on Refresh
     ===================================================== */
     const fetchJobs = async () => {
         try {
-            const { data, error } = await supabase
-                .from("jobs")
-                .select("*")
-                .order("created_at", { ascending: false });
-
-            if (error) {
-                console.warn("Supabase fetch jobs warning:", error);
-            }
-            if (data && Array.isArray(data)) {
-                setJobsData(data);
+            const res = await api.get("/career/admin/jobs");
+            if (res.data.success && res.data.jobs) {
+                setJobsData(res.data.jobs);
+            } else if (Array.isArray(res.data)) {
+                setJobsData(res.data);
             }
         } catch (err) {
-            console.error("FETCH JOBS ERROR", err.message || err);
+            console.error("FETCH JOBS ERROR", err.response?.data || err.message);
         }
     };
 
@@ -178,7 +188,7 @@ const JobsTab = () => {
     }, []);
 
     /* =====================================================
-       CREATE / UPDATE JOB (POST / PUT)
+       CREATE JOB (POST → DRAFT)
     ===================================================== */
     const handleCreateJob = async () => {
         try {
@@ -240,30 +250,17 @@ const JobsTab = () => {
                 recruiter_phone: formData.recruiter_phone,
                 recruiter_linkedin: formData.recruiter_linkedin,
                 company_linkedin: formData.company_linkedin,
-                updated_at: new Date().toISOString()
             };
 
-            let savedJob;
-            if (editingJobId) {
-                const { data, error } = await supabase
-                    .from("jobs")
-                    .update(payload)
-                    .eq("id", editingJobId)
-                    .select()
-                    .single();
-                if (error) throw error;
-                savedJob = data;
-            } else {
-                const { data, error } = await supabase
-                    .from("jobs")
-                    .insert([{ ...payload, status: 'draft', created_at: new Date().toISOString() }])
-                    .select()
-                    .single();
-                if (error) throw error;
-                savedJob = data;
-            }
+            const res = editingJobId
+                ? await api.put(`/career/admin/jobs/${editingJobId}`, payload)
+                : await api.post("/career/admin/jobs", payload);
+            const job = res.data.job;
 
-            const job = savedJob || { id: editingJobId || Date.now(), ...payload };
+            if (!job?.id) {
+                console.error("❌ Backend did not return job.id", job);
+                return;
+            }
 
             setJobsData((prev) =>
                 editingJobId
@@ -279,15 +276,14 @@ const JobsTab = () => {
             setExpMode("select");
             setEditingJobId(null);
         } catch (err) {
-            console.error("CREATE JOB ERROR", err.message || err);
-            alert("Failed to save job: " + (err.message || "Unknown error"));
+            console.error("CREATE JOB ERROR", err.response?.data || err.message);
         } finally {
             setLoading(false);
         }
     };
 
     /* =====================================================
-       UPDATE STATUS (PATCH) - Matches Supabase Table
+       UPDATE STATUS (PATCH) - Matches Backend Route
     ===================================================== */
     const handleEditClick = (job) => {
         setEditingJobId(job.id);
@@ -334,22 +330,22 @@ const JobsTab = () => {
         }
 
         try {
-            const { error } = await supabase
-                .from("jobs")
-                .update({ status, updated_at: new Date().toISOString() })
-                .eq("id", jobId);
+            const res = await api.patch(
+                `/career/admin/jobs/${jobId}/status`,
+                { status }
+            );
 
-            if (error) throw error;
+            const updatedJob = res.data.job;
 
             setJobsData((prev) =>
                 prev.map((job) =>
-                    job.id === jobId ? { ...job, status } : job
+                    job.id === jobId ? { ...job, status: updatedJob.status } : job
                 )
             );
         } catch (err) {
             console.error(
                 "UPDATE STATUS ERROR",
-                err.message || err
+                err.response?.data || err.message
             );
         }
     };

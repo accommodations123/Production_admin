@@ -26,9 +26,7 @@ export function getAdminInfo() {
 export function getAdminRole() {
     const isLoggedIn = localStorage.getItem("admin-logged-in") === "true";
     if (!isLoggedIn) return null;
-    const role = localStorage.getItem("admin-role");
-    if (!role || role === "authenticated") return "super_admin";
-    return role;
+    return localStorage.getItem("admin-role");
 }
 
 /**

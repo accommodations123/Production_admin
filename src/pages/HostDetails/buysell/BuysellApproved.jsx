@@ -1,24 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabaseClient';
+import axios from 'axios';
 
 const BuySellApproved = () => {
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState(null);
 
+    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
     useEffect(() => {
         const fetchApproved = async () => {
             try {
-                const { data, error } = await supabase
-                    .from("buy_sell")
-                    .select("*")
-                    .eq("status", "approved")
-                    .order("created_at", { ascending: false });
+                const token = localStorage.getItem("admin-auth");
+                const response = await axios.get(`${BASE_URL}/buy-sell/admin/buy-sell/approved`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
 
-                if (error) {
-                    console.warn("Supabase fetch approved buy_sell note:", error);
+                const data = response.data;
+
+                // --- FIXED DATA HANDLING ---
+                if (Array.isArray(data)) {
+                    setListings(data);
+                } else if (data && Array.isArray(data.listings)) {
+                    // This handles the { success: true, listings: [...] } format
+                    setListings(data.listings);
+                } else if (data && Array.isArray(data.data)) {
+                    setListings(data.data);
+                } else {
+                    console.error("Unexpected Data Format:", data);
+                    setListings([]);
                 }
-                setListings(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error("Error fetching approved listings:", err);
                 setListings([]);
@@ -28,7 +39,7 @@ const BuySellApproved = () => {
         };
 
         fetchApproved();
-    }, []);
+    }, [BASE_URL]);
 
     return (
         <div className="space-y-4">
@@ -122,9 +133,9 @@ const BuySellApproved = () => {
                                     <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
                                         <h4 className="text-xs uppercase text-gray-500 font-bold mb-2">Seller Info</h4>
                                         <div className="space-y-1 text-sm">
-                                            <p className="font-bold text-gray-900">{selectedItem.seller_name || selectedItem.name || 'Seller'}</p>
-                                            <p className="text-gray-600">{selectedItem.seller_phone || selectedItem.phone || 'N/A'}</p>
-                                            <p className="text-gray-500 text-xs">{selectedItem.seller_email || selectedItem.email || selectedItem.User?.email || 'N/A'}</p>
+                                            <p className="font-bold text-gray-900">{selectedItem.name}</p>
+                                            <p className="text-gray-600">{selectedItem.phone}</p>
+                                            <p className="text-gray-500 text-xs">{selectedItem.User?.email}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -133,18 +144,17 @@ const BuySellApproved = () => {
                             <div className="mb-6 border-t pt-4">
                                 <h4 className="font-medium text-gray-900 mb-2">Location</h4>
                                 <p className="text-sm text-gray-600">
-                                    {selectedItem.street_address ? `${selectedItem.street_address}, ` : ''}
-                                    {[selectedItem.city, selectedItem.state, selectedItem.zip_code].filter(Boolean).join(', ')}
-                                    {selectedItem.country ? `<br />${selectedItem.country}` : ''}
-                                    {!selectedItem.city && !selectedItem.street_address && !selectedItem.country && 'Location not specified'}
+                                    {selectedItem.street_address}<br />
+                                    {selectedItem.city}, {selectedItem.state} {selectedItem.zip_code}<br />
+                                    {selectedItem.country}
                                 </p>
                             </div>
 
                             <div className="text-xs text-gray-400 pt-4 border-t grid grid-cols-2 gap-2">
-                                <p>Posted: {(selectedItem.created_at || selectedItem.createdAt) ? new Date(selectedItem.created_at || selectedItem.createdAt).toLocaleString() : 'N/A'}</p>
-                                <p>Updated: {(selectedItem.updated_at || selectedItem.updatedAt) ? new Date(selectedItem.updated_at || selectedItem.updatedAt).toLocaleString() : 'N/A'}</p>
-                                <p>User ID: {selectedItem.user_id || 'N/A'}</p>
-                                <p>Listing ID: {selectedItem.id || 'N/A'}</p>
+                                <p>Posted: {new Date(selectedItem.createdAt).toLocaleString()}</p>
+                                <p>Updated: {new Date(selectedItem.updatedAt).toLocaleString()}</p>
+                                <p>User ID: {selectedItem.user_id}</p>
+                                <p>Listing ID: {selectedItem.id}</p>
                             </div>
                         </div>
                     </div>

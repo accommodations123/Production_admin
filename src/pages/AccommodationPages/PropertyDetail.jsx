@@ -14,14 +14,14 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://dmhxnuxlodsshdkunngb.supabase.co";
+const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    const normalizedPath = String(imagePath).replace(/\\/g, '/');
+    const normalizedPath = imagePath.replace(/\\/g, '/');
     if (normalizedPath.startsWith('http')) return normalizedPath;
     const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-    return `${SUPABASE_URL}/storage/v1/object/public/${cleanPath}`;
+    return `${API_BASE}/${cleanPath}`;
 };
 
 const PropertyDetail = ({ property, onBack }) => {
