@@ -7,6 +7,7 @@ import {
   MapPin,
   Calendar,
   DollarSign,
+  IndianRupee,
   User,
   Users,
   Search,
@@ -52,6 +53,38 @@ const PostStayRequests = () => {
     setTimeout(() => {
       setNotification({ show: false, message: "", type: "success" });
     }, 4000);
+  };
+
+  /* ═══════ CURRENCY BADGE HELPER ═══════ */
+  const renderCurrencyAmount = (budget, currency = "INR", iconClass = "w-3.5 h-3.5") => {
+    if (!budget && budget !== 0) return <span className="text-slate-400 font-normal">Flexible</span>;
+    const curr = String(currency || "INR").toUpperCase().trim();
+    const formattedNum = Number(budget).toLocaleString();
+
+    if (curr === "INR" || curr === "₹" || curr === "RS" || curr === "RUPEE" || curr === "RUPEES") {
+      return (
+        <span className="inline-flex items-center gap-0.5">
+          <IndianRupee className={`${iconClass} text-emerald-600 shrink-0 inline`} />
+          <span>{formattedNum}</span>
+        </span>
+      );
+    }
+
+    if (curr === "USD" || curr === "$") {
+      return (
+        <span className="inline-flex items-center gap-0.5">
+          <DollarSign className={`${iconClass} text-emerald-600 shrink-0 inline`} />
+          <span>{formattedNum}</span>
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-xs font-semibold text-slate-500">{curr}</span>
+        <span>{formattedNum}</span>
+      </span>
+    );
   };
 
   /* ═══════ NORMALIZE STAY REQUEST ═══════ */
@@ -628,9 +661,8 @@ const PostStayRequests = () => {
                           </td>
 
                           <td className="px-5 py-4 text-xs text-slate-600">
-                            <div className="flex items-center gap-1 font-semibold text-slate-800">
-                              <DollarSign className="w-3 h-3 text-emerald-600 shrink-0" />
-                              <span>{r.budget ? `${r.budget} ${r.currency}` : "Flexible"}</span>
+                            <div className="font-semibold text-slate-900">
+                              {renderCurrencyAmount(r.budget, r.currency, "w-3.5 h-3.5")}
                             </div>
                             <div className="flex items-center gap-1 text-slate-400 mt-0.5">
                               <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
@@ -910,7 +942,7 @@ const PostStayRequests = () => {
                           </span>
                           <span>•</span>
                           <span className="font-semibold text-emerald-600 flex items-center">
-                            <DollarSign className="w-3.5 h-3.5" /> {r.budget ? `${r.budget} ${r.currency}` : "Budget flexible"}
+                            {renderCurrencyAmount(r.budget, r.currency, "w-4 h-4")}
                           </span>
                         </div>
                       </div>
