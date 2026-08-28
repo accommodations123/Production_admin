@@ -20,19 +20,71 @@ const PropertyRejected = () => {
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+    const resolveHost = (raw, profiles = []) => {
+        const parseJson = (val) => {
+            if (!val) return {};
+            if (typeof val === 'object') return val;
+            try { return JSON.parse(val); } catch { return {}; }
+        };
+
+        const nestedOwner = raw?.owner || raw?.Host || raw?.host || raw?.User || raw?.user || raw?.profile || {};
+        const targetId = String(raw?.host_id || raw?.user_id || raw?.owner_id || raw?.created_by || raw?.hostId || raw?.userId || raw?.ownerId || nestedOwner?.id || '');
+        const targetEmail = (raw?.email || raw?.host_email || raw?.hostEmail || raw?.owner_email || raw?.ownerEmail || raw?.user_email || raw?.contact_email || nestedOwner?.email || '').toLowerCase().trim();
+        const targetName = (raw?.host_name || raw?.hostName || raw?.owner_name || raw?.ownerName || raw?.user_name || raw?.userName || raw?.full_name || raw?.name || nestedOwner?.full_name || nestedOwner?.name || '').toLowerCase().trim();
+
+        const matchedProfile = Array.isArray(profiles) ? profiles.find(p => {
+            if (!p) return false;
+            const pId = String(p.id || p._id || '');
+            if (targetId && pId && targetId === pId) return true;
+            const pEmail = (p.email || p.user_email || p.contact_email || '').toLowerCase().trim();
+            if (targetEmail && pEmail && targetEmail === pEmail) return true;
+            const pFullName = (p.full_name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.name || '').toLowerCase().trim();
+            if (targetName && pFullName && (targetName === pFullName || (targetName.length > 3 && pFullName.includes(targetName)))) return true;
+            return false;
+        }) : null;
+
+        const pVerification = parseJson(matchedProfile?.verification);
+        const pMeta = parseJson(matchedProfile?.metadata || matchedProfile?.meta || matchedProfile?.raw_user_meta_data);
+
+        const fullName = matchedProfile?.full_name || `${matchedProfile?.firstName || ''} ${matchedProfile?.lastName || ''}`.trim() || matchedProfile?.name || pVerification?.full_name || pMeta?.full_name || nestedOwner?.full_name || raw?.host_name || raw?.hostName || raw?.owner_name || raw?.full_name || (targetEmail ? targetEmail.split('@')[0] : null);
+        const email = matchedProfile?.email || matchedProfile?.user_email || nestedOwner?.email || raw?.email || raw?.host_email || raw?.owner_email || null;
+        const phone = matchedProfile?.phone || matchedProfile?.phone_number || matchedProfile?.phoneNumber || matchedProfile?.mobile || nestedOwner?.phone || raw?.phone || raw?.host_phone || raw?.owner_phone || null;
+
+        return {
+            id: matchedProfile?.id || targetId || null,
+            full_name: fullName || 'Host',
+            email: email || '',
+            phone: phone || '',
+            User: { email: email || '' },
+            raw_profile: matchedProfile || null
+        };
+    };
+
     useEffect(() => {
         const fetchRejected = async () => {
             try {
-                const { data, error } = await supabase
-                    .from("properties")
-                    .select("*")
-                    .eq("status", "rejected")
-                    .order("created_at", { ascending: false });
+                const [propsRes, profilesRes] = await Promise.all([
+                    supabase
+                        .from("properties")
+                        .select("*")
+                        .eq("status", "rejected")
+                        .order("created_at", { ascending: false }),
+                    supabase
+                        .from("profiles")
+                        .select("*")
+                        .order("created_at", { ascending: false })
+                ]);
 
-                if (error) {
-                    console.warn("Supabase fetch rejected properties note:", error);
+                if (propsRes.error) {
+                    console.warn("Supabase fetch rejected properties note:", propsRes.error);
                 }
-                setProperties(Array.isArray(data) ? data : []);
+                const rawProps = Array.isArray(propsRes.data) ? propsRes.data : [];
+                const profiles = Array.isArray(profilesRes.data) ? profilesRes.data : [];
+                const formatted = rawProps.map(p => ({
+                    ...p,
+                    Host: resolveHost(p, profiles)
+                }));
+                setProperties(formatted);
             } catch (err) {
                 console.error("Error fetching rejected properties:", err);
                 setProperties([]);

@@ -207,10 +207,145 @@ const HostingApproval = () => {
 
   const token = localStorage.getItem("admin-auth");
 
-  // Normalize function (same as your original)
-  const normalize = (item) => {
+  // Helper to resolve owner details from property and profiles list
+  const resolveOwner = (raw, profiles = []) => {
+    const parseJson = (val) => {
+      if (!val) return {};
+      if (typeof val === 'object') return val;
+      try { return JSON.parse(val); } catch { return {}; }
+    };
+
+    const nestedOwner = raw?.owner || raw?.Host || raw?.host || raw?.User || raw?.user || raw?.profile || raw?.profiles || {};
+    const nestedVerification = parseJson(nestedOwner?.verification || raw?.verification);
+    const nestedContact = parseJson(nestedOwner?.contact || nestedOwner?.contact_info || raw?.contact || raw?.contact_info);
+    const nestedMeta = parseJson(nestedOwner?.metadata || nestedOwner?.meta || raw?.metadata || raw?.meta || raw?.raw_user_meta_data);
+
+    // Target host / user ID, email, and name from property
+    const targetId = String(raw?.host_id || raw?.user_id || raw?.owner_id || raw?.created_by || raw?.hostId || raw?.userId || raw?.ownerId || nestedOwner?.id || nestedOwner?._id || '');
+    const targetEmail = (raw?.email || raw?.host_email || raw?.hostEmail || raw?.owner_email || raw?.ownerEmail || raw?.user_email || raw?.contact_email || nestedOwner?.email || nestedContact?.email || nestedMeta?.email || '').toLowerCase().trim();
+    const targetName = (raw?.host_name || raw?.hostName || raw?.owner_name || raw?.ownerName || raw?.user_name || raw?.userName || raw?.full_name || raw?.name || nestedOwner?.full_name || nestedOwner?.name || '').toLowerCase().trim();
+
+    // Match profile from profiles list
+    const matchedProfile = Array.isArray(profiles) ? profiles.find(p => {
+      if (!p) return false;
+      const pId = String(p.id || p._id || '');
+      if (targetId && pId && targetId === pId) return true;
+
+      const pEmail = (p.email || p.user_email || p.contact_email || '').toLowerCase().trim();
+      if (targetEmail && pEmail && targetEmail === pEmail) return true;
+
+      const pFullName = (p.full_name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.name || p.displayName || '').toLowerCase().trim();
+      if (targetName && pFullName && (targetName === pFullName || (targetName.length > 3 && pFullName.includes(targetName)))) return true;
+
+      return false;
+    }) : null;
+
+    const pVerification = parseJson(matchedProfile?.verification);
+    const pContact = parseJson(matchedProfile?.contact || matchedProfile?.contact_info);
+    const pMeta = parseJson(matchedProfile?.metadata || matchedProfile?.meta || matchedProfile?.raw_user_meta_data);
+
+    // Resolve Full Name
+    const fullName =
+      matchedProfile?.full_name ||
+      `${matchedProfile?.firstName || ''} ${matchedProfile?.lastName || ''}`.trim() ||
+      matchedProfile?.name ||
+      matchedProfile?.displayName ||
+      matchedProfile?.userName ||
+      pVerification?.full_name ||
+      pMeta?.full_name ||
+      pMeta?.name ||
+      nestedOwner?.full_name ||
+      nestedOwner?.name ||
+      nestedVerification?.full_name ||
+      nestedMeta?.full_name ||
+      nestedMeta?.name ||
+      raw?.host_name ||
+      raw?.hostName ||
+      raw?.owner_name ||
+      raw?.ownerName ||
+      raw?.user_name ||
+      raw?.userName ||
+      raw?.full_name ||
+      raw?.name ||
+      (targetEmail ? targetEmail.split('@')[0] : null);
+
+    // Resolve Email
+    const email =
+      matchedProfile?.email ||
+      matchedProfile?.user_email ||
+      matchedProfile?.contact_email ||
+      pContact?.email ||
+      pMeta?.email ||
+      nestedOwner?.email ||
+      nestedContact?.email ||
+      nestedMeta?.email ||
+      raw?.email ||
+      raw?.host_email ||
+      raw?.hostEmail ||
+      raw?.owner_email ||
+      raw?.ownerEmail ||
+      raw?.user_email ||
+      raw?.contact_email ||
+      null;
+
+    // Resolve Phone
+    const phone =
+      matchedProfile?.phone ||
+      matchedProfile?.phone_number ||
+      matchedProfile?.phoneNumber ||
+      matchedProfile?.mobile ||
+      matchedProfile?.mobile_number ||
+      matchedProfile?.contact ||
+      matchedProfile?.contact_number ||
+      matchedProfile?.whatsapp ||
+      pContact?.phone ||
+      pVerification?.phone ||
+      pMeta?.phone ||
+      nestedOwner?.phone ||
+      nestedContact?.phone ||
+      nestedVerification?.phone ||
+      nestedMeta?.phone ||
+      raw?.phone ||
+      raw?.host_phone ||
+      raw?.hostPhone ||
+      raw?.owner_phone ||
+      raw?.ownerPhone ||
+      raw?.phone_number ||
+      raw?.phoneNumber ||
+      raw?.mobile ||
+      raw?.contact_number ||
+      raw?.contact ||
+      null;
+
+    // Resolve Avatar
+    const avatar =
+      matchedProfile?.avatar_url ||
+      matchedProfile?.avatar ||
+      matchedProfile?.profile_picture ||
+      matchedProfile?.image ||
+      matchedProfile?.photo_url ||
+      nestedOwner?.avatar_url ||
+      nestedOwner?.avatar ||
+      raw?.host_avatar ||
+      raw?.owner_avatar ||
+      null;
+
+    return {
+      id: matchedProfile?.id || targetId || null,
+      fullName: fullName || null,
+      email: email || null,
+      phone: phone || null,
+      avatar: avatar || null,
+      role: matchedProfile?.role || 'Host',
+      isVerified: Boolean(matchedProfile?.is_verified || matchedProfile?.is_approved),
+      profile: matchedProfile || null,
+    };
+  };
+
+  // Normalize function
+  const normalize = (item, profilesList = []) => {
     const raw = item?.property || item;
-    const owner = item?.owner || raw?.User || item?.owner || null;
+    const owner = resolveOwner(raw, profilesList);
     const rawId = raw?.id ?? raw?._id ?? raw?.property_id ?? null;
     const _id = rawId != null ? String(rawId) : Math.random().toString(36).slice(2, 9);
 
@@ -271,33 +406,33 @@ const HostingApproval = () => {
       is_expired: raw?.is_expired ?? false,
       createdAt: raw?.createdAt ?? raw?.created_at ?? null,
       updatedAt: raw?.updatedAt ?? raw?.updated_at ?? null,
-      owner: {
-        email: owner?.email ?? owner?.User?.email ?? null,
-        phone: owner?.verification?.phone ?? owner?.phone ?? null,
-        fullName: owner?.verification?.full_name ?? owner?.full_name ?? null,
-      },
+      owner,
       raw,
     };
   };
 
-  // Fetch all properties (pending, approved, rejected) from Supabase
+  // Fetch all properties (pending, approved, rejected) and profiles from Supabase
   useEffect(() => {
     let mounted = true;
     const fetchAllProperties = async () => {
       setLoading(true);
       setError(null);
       try {
-        const { data, error: fetchErr } = await supabase
-          .from("properties")
-          .select("*")
-          .order("created_at", { ascending: false });
+        const [propsRes, profilesRes] = await Promise.all([
+          supabase.from("properties").select("*").order("created_at", { ascending: false }),
+          supabase.from("profiles").select("*").order("created_at", { ascending: false })
+        ]);
 
-        if (fetchErr) {
-          console.warn("Supabase fetch properties query warning:", fetchErr);
+        if (propsRes.error) {
+          console.warn("Supabase fetch properties warning:", propsRes.error);
+        }
+        if (profilesRes.error) {
+          console.warn("Supabase fetch profiles warning:", profilesRes.error);
         }
 
-        const rawList = Array.isArray(data) ? data : [];
-        const normalized = rawList.map(normalize);
+        const rawList = Array.isArray(propsRes.data) ? propsRes.data : [];
+        const profilesList = Array.isArray(profilesRes.data) ? profilesRes.data : [];
+        const normalized = rawList.map(item => normalize(item, profilesList));
 
         if (mounted) {
           setProperties(normalized);
@@ -595,16 +730,25 @@ const HostingApproval = () => {
           </div>
 
           {/* Owner Block */}
-          {property.owner?.fullName && (
+          {(property.owner?.fullName || property.owner?.email) && (
             <div className="mb-auto mt-2 flex items-center gap-2.5 rounded-lg bg-slate-50 p-2.5">
               {/* Initials Avatar */}
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-violet-600 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-                {property.owner.fullName.charAt(0)}
-              </div>
+              {property.owner.avatar ? (
+                <img
+                  src={getImageUrl(property.owner.avatar) || property.owner.avatar}
+                  alt={property.owner.fullName || "Owner"}
+                  className="h-8 w-8 rounded-full object-cover shrink-0"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-violet-600 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                  {(property.owner.fullName || property.owner.email || 'O').charAt(0).toUpperCase()}
+                </div>
+              )}
               {/* Text */}
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Owner</p>
-                <p className="truncate text-xs font-bold text-slate-900">{property.owner.fullName}</p>
+                <p className="truncate text-xs font-bold text-slate-900">{property.owner.fullName || property.owner.email}</p>
               </div>
             </div>
           )}
@@ -772,10 +916,10 @@ const HostingApproval = () => {
                 </div>
               )}
 
-              {property.owner?.email && (
+              {(property.owner?.fullName || property.owner?.email) && (
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
-                  <UserIcon className="h-4 w-4" />
-                  <span>Owner: {property.owner.fullName || property.owner.email}</span>
+                  <UserIcon className="h-4 w-4 shrink-0" />
+                  <span>Owner: {property.owner.fullName || property.owner.email}{property.owner.phone ? ` • ${property.owner.phone}` : ''}</span>
                 </div>
               )}
             </div>
@@ -1119,17 +1263,39 @@ const HostingApproval = () => {
                 <div className="lg:col-span-4 bg-white p-6 border-l border-slate-100">
                   {/* Owner Info */}
                   {viewProperty.owner && (
-                    <div className="bg-slate-50 rounded-2xl p-4 mb-6">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Owner Information</h4>
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg">
-                          {viewProperty.owner.fullName?.[0] || viewProperty.owner.email?.[0] || 'O'}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-900">{viewProperty.owner.fullName || 'Property Owner'}</p>
-                          <p className="text-sm text-slate-500 truncate">{viewProperty.owner.email}</p>
+                    <div className="bg-slate-50 rounded-2xl p-4 mb-6 border border-slate-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Owner Information</h4>
+                        {viewProperty.owner.isVerified && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            <CheckBadgeSolid className="w-3.5 h-3.5 text-emerald-600" /> Verified
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3.5">
+                        {viewProperty.owner.avatar ? (
+                          <img
+                            src={getImageUrl(viewProperty.owner.avatar) || viewProperty.owner.avatar}
+                            alt={viewProperty.owner.fullName || "Owner"}
+                            className="h-12 w-12 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
+                            {(viewProperty.owner.fullName?.[0] || viewProperty.owner.email?.[0] || 'O').toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-900 truncate">
+                            {viewProperty.owner.fullName || (viewProperty.owner.email ? viewProperty.owner.email.split('@')[0] : 'Property Owner')}
+                          </p>
+                          {viewProperty.owner.email ? (
+                            <p className="text-xs text-slate-500 truncate mt-0.5">{viewProperty.owner.email}</p>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic mt-0.5">No email provided</p>
+                          )}
                           {viewProperty.owner.phone && (
-                            <p className="text-sm text-slate-500">{viewProperty.owner.phone}</p>
+                            <p className="text-xs text-slate-500 mt-0.5 font-medium">{viewProperty.owner.phone}</p>
                           )}
                         </div>
                       </div>
