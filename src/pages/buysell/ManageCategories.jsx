@@ -4,7 +4,7 @@ import { Package, TrendingUp } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
-const api = axios.create({ baseURL: API_BASE, withCredentials: true });
+const api = axios.create({ baseURL: API_BASE });
 
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem("admin-auth");

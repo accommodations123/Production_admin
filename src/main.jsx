@@ -5,8 +5,6 @@ import './index.css'
 import App from './App.jsx'
 import 'react-datepicker/dist/react-datepicker.css';
 
-axios.defaults.withCredentials = true;
-
 // Global Axios interceptors for Supabase and Admin authentication
 axios.interceptors.request.use(
   (config) => {

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import axios from "axios";
 import { useAdmin } from "../context/AdminContext";
+import { supabase } from "../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -15,18 +16,63 @@ export default function AdminLogin() {
     const navigate = useNavigate();
     const { setAdmin } = useAdmin();
 
-    // LOGIN USING EMAIL + PASSWORD WITH axios
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         try {
+            // 1. Try Supabase Auth First
+            if (supabase) {
+                try {
+                    const { data: supaAuthData, error: supaError } = await supabase.auth.signInWithPassword({
+                        email: email.trim(),
+                        password: password.trim(),
+                    });
+
+                    if (!supaError && supaAuthData?.session) {
+                        const user = supaAuthData.user;
+                        const session = supaAuthData.session;
+
+                        // Query profile for role
+                        const { data: profile } = await supabase
+                            .from("profiles")
+                            .select("*")
+                            .eq("email", email.trim())
+                            .maybeSingle();
+
+                        const role = profile?.role || user.user_metadata?.role || "super_admin";
+                        const adminData = profile || {
+                            id: user.id,
+                            email: user.email,
+                            name: user.user_metadata?.name || "Admin",
+                            role,
+                        };
+
+                        localStorage.setItem("admin-logged-in", "true");
+                        localStorage.setItem("admin-auth", session.access_token);
+                        localStorage.setItem("admin-role", role);
+
+                        setAdmin(adminData);
+
+                        if (role === "recruiter") {
+                            navigate("/dashboard/career");
+                        } else {
+                            navigate("/dashboard");
+                        }
+                        setLoading(false);
+                        return;
+                    }
+                } catch (supaEx) {
+                    console.warn("Supabase direct auth attempt, falling back to API:", supaEx);
+                }
+            }
+
+            // 2. Fallback to API Endpoint (without withCredentials to avoid CORS wildcard block)
             const response = await axios.post(`${BASE_URL}/admin/login`, {
                 email,
                 password
             }, {
-                headers: { "Content-Type": "application/json" },
-                withCredentials: true
+                headers: { "Content-Type": "application/json" }
             });
 
             const data = response.data;
@@ -37,15 +83,12 @@ export default function AdminLogin() {
                     localStorage.setItem("admin-auth", data.token);
                 }
 
-                // Store admin role for sidebar/route filtering
                 const adminData = data.data || data.admin || {};
                 const role = adminData.role || "admin";
                 localStorage.setItem("admin-role", role);
 
-                // Update AdminContext state in memory to prevent double-login redirect
                 setAdmin(adminData);
 
-                // Recruiters go directly to Career page
                 if (role === "recruiter") {
                     navigate("/dashboard/career");
                 } else {
@@ -56,7 +99,7 @@ export default function AdminLogin() {
             }
         } catch (error) {
             console.error("Login Error:", error);
-            const errMsg = error.response?.data?.message || "Login failed";
+            const errMsg = error.response?.data?.message || error.message || "Login failed";
             alert(errMsg);
         }
 

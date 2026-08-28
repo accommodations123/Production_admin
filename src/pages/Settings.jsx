@@ -130,7 +130,6 @@ function SecurityTab({ showToast }) {
                 current_password: currentPass,
                 new_password: newPass
             }, {
-                withCredentials: true,
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token && { Authorization: `Bearer ${token}` })

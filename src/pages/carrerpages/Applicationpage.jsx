@@ -10,7 +10,6 @@ import { formatUTCDate } from '../../utils/timezone';
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 const api = axios.create({
     baseURL: BASE_URL,
-    withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {

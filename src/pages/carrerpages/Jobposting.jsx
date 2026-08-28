@@ -15,7 +15,6 @@ import {
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 const api = axios.create({
     baseURL: BASE_URL,
-    withCredentials: true,
 });
 
 const COUNTRY_OPTIONS = ["United States of America", "South Africa", "India",];
