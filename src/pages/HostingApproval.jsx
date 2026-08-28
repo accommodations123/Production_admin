@@ -41,6 +41,7 @@ import {
   CheckCircleIcon as CheckCircleSolid,
   XCircleIcon as XCircleSolid,
   MapPinIcon as MapPinSolid,
+  CheckBadgeIcon as CheckBadgeSolid,
 } from "@heroicons/react/24/solid";
 
 import AccomadationStats from "../pages/AccommodationPages/AccomadationStats";
