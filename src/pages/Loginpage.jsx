@@ -62,42 +62,18 @@ export default function AdminLogin() {
                         setLoading(false);
                         return;
                     } else if (supaError) {
-                        console.warn("Supabase auth error:", supaError.message);
+                        alert(supaError.message || "Invalid admin email or password!");
+                        setLoading(false);
+                        return;
                     }
                 } catch (supaEx) {
-                    console.warn("Supabase direct auth attempt, falling back to API:", supaEx);
-                }
-            }
-
-            // 2. Fallback to API Endpoint (without withCredentials to avoid CORS wildcard block)
-            const response = await axios.post(`${BASE_URL}/admin/login`, {
-                email: email.trim(),
-                password: password.trim()
-            }, {
-                headers: { "Content-Type": "application/json" }
-            });
-
-            const data = response.data;
-
-            if (data.success) {
-                localStorage.setItem("admin-logged-in", "true");
-                if (data.token) {
-                    localStorage.setItem("admin-auth", data.token);
-                }
-
-                const adminData = data.data || data.admin || {};
-                const role = adminData.role || "admin";
-                localStorage.setItem("admin-role", role);
-
-                setAdmin(adminData);
-
-                if (role === "recruiter") {
-                    navigate("/dashboard/career");
-                } else {
-                    navigate("/dashboard");
+                    console.error("Supabase login error:", supaEx);
+                    alert(supaEx.message || "Login failed. Please try again.");
+                    setLoading(false);
+                    return;
                 }
             } else {
-                alert(data.message || "Invalid admin credentials!");
+                alert("Supabase client is not initialized. Please check your configuration.");
             }
         } catch (error) {
             console.error("Login Error:", error);
