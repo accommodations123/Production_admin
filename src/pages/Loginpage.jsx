@@ -61,6 +61,8 @@ export default function AdminLogin() {
                         }
                         setLoading(false);
                         return;
+                    } else if (supaError) {
+                        console.warn("Supabase auth error:", supaError.message);
                     }
                 } catch (supaEx) {
                     console.warn("Supabase direct auth attempt, falling back to API:", supaEx);
@@ -69,8 +71,8 @@ export default function AdminLogin() {
 
             // 2. Fallback to API Endpoint (without withCredentials to avoid CORS wildcard block)
             const response = await axios.post(`${BASE_URL}/admin/login`, {
-                email,
-                password
+                email: email.trim(),
+                password: password.trim()
             }, {
                 headers: { "Content-Type": "application/json" }
             });
