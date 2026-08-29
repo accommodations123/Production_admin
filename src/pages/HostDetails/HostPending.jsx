@@ -16,7 +16,7 @@ function HostPending() {
                 const { data, error: supaErr } = await supabase
                     .from('profiles')
                     .select('*')
-                    .or('role.eq.host,role.eq.user');
+                    .eq('role', 'host');
 
                 if (supaErr) {
                     console.error("Fetch pending hosts error:", supaErr);

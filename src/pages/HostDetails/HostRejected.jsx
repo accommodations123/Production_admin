@@ -13,7 +13,7 @@ function HostRejected() {
                 const { data, error: supaErr } = await supabase
                     .from('profiles')
                     .select('*')
-                    .or('role.eq.host,role.eq.user')
+                    .eq('role', 'host')
                     .eq('status', 'rejected');
 
                 if (supaErr) {
