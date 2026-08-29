@@ -75,6 +75,28 @@ const BLOCKING_REASONS = [
   "Suspicious transaction or activity"
 ];
 
+const isPeopleProfile = (p) => {
+  if (!p) return false;
+  // Never show admin accounts in People directory
+  if (p.role === "super_admin" || p.role === "admin") return false;
+
+  // Explicit community / people directory roles
+  if (p.role === "people" || p.role === "member" || p.role === "traveler") return true;
+
+  // Check for submitted People directory information
+  const hasProfession = Boolean(p.profession && typeof p.profession === "string" && p.profession.trim());
+  const hasHeadline = Boolean(p.headline && typeof p.headline === "string" && p.headline.trim());
+  const hasValidOccupation = Boolean(
+    p.occupation &&
+    typeof p.occupation === "string" &&
+    !p.occupation.trim().startsWith("{") &&
+    p.occupation.trim().length > 0
+  );
+  const hasIdProof = Boolean(p.id_proof_type || p.id_photo || p.selfie_photo);
+
+  return hasProfession || hasHeadline || hasValidOccupation || hasIdProof;
+};
+
 const People = () => {
   const [activeTab, setActiveTab] = useState("profiles"); // "profiles" | "reports"
   const [profiles, setProfiles] = useState([]);
@@ -124,7 +146,9 @@ const People = () => {
       const { data: supaProfiles, error: supaErr } = await supabase.from('profiles').select('*');
       if (supaErr) throw supaErr;
 
-      let rawList = (supaProfiles || []).map(p => ({
+      const peopleOnly = (supaProfiles || []).filter(isPeopleProfile);
+
+      let rawList = peopleOnly.map(p => ({
         ...p,
         status: p.status || (p.is_approved ? 'approved' : 'pending')
       }));
@@ -156,10 +180,12 @@ const People = () => {
   const fetchAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
     try {
-      const { data: profiles, error: supaErr } = await supabase.from('profiles').select('status, is_approved, is_blocked, is_verified, is_featured');
+      const { data: profiles, error: supaErr } = await supabase.from('profiles').select('role, profession, headline, occupation, id_proof_type, id_photo, selfie_photo, status, is_approved, is_blocked, is_verified, is_featured');
       if (supaErr) throw supaErr;
 
-      const list = (profiles || []).map(p => ({
+      const peopleOnly = (profiles || []).filter(isPeopleProfile);
+
+      const list = peopleOnly.map(p => ({
         ...p,
         status: p.status || (p.is_approved ? 'approved' : 'pending')
       }));
