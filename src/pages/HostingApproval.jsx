@@ -380,6 +380,8 @@ const HostingApproval = () => {
     if (actionInProgress) return;
     setActionInProgress(true);
     try {
+      const property = properties.find(p => p._id === String(id) || p.id === id);
+
       const { error: supaErr } = await supabase
         .from('properties')
         .update({ status: 'approved', is_approved: true })
@@ -391,9 +393,18 @@ const HostingApproval = () => {
         return;
       }
 
+      // Automatically ensure host profile is verified and approved
+      if (property?.owner?.id || property?.host_id) {
+        const hostId = property?.owner?.id || property?.host_id;
+        await supabase
+          .from('profiles')
+          .update({ status: 'approved', is_approved: true, is_verified: true })
+          .eq('id', hostId);
+      }
+
       // Update local state
       setProperties(prev => prev.map(p =>
-        p._id === String(id) ? { ...p, status: 'approved' } : p
+        p._id === String(id) ? { ...p, status: 'approved', is_approved: true } : p
       ));
 
       setStats(prev => ({
@@ -403,8 +414,7 @@ const HostingApproval = () => {
       }));
 
       // Show success notification
-      const property = properties.find(p => p._id === String(id));
-      showToast(`"${property?.title || 'Property'}" has been approved`, 'success');
+      showToast(`"${property?.title || 'Property'}" has been approved and verified`, 'success');
 
     } catch (err) {
       console.error("Approval error:", err);

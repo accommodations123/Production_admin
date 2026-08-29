@@ -238,13 +238,17 @@ const People = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`${id}-approve`);
-      const { error: supaErr } = await supabase.from('profiles').update({ status: 'approved', is_approved: true }).eq('id', id);
+      const { error: supaErr } = await supabase.from('profiles').update({
+        status: 'approved',
+        is_approved: true,
+        is_verified: true
+      }).eq('id', id);
       if (supaErr) throw supaErr;
-      showToast("Profile approved successfully", "success");
+      showToast("Profile approved and verified successfully", "success");
       fetchProfiles();
       fetchAnalytics();
       if (selectedProfile && (selectedProfile._id === id || selectedProfile.id === id)) {
-        setSelectedProfile(prev => ({ ...prev, status: 'approved', is_approved: true }));
+        setSelectedProfile(prev => ({ ...prev, status: 'approved', is_approved: true, is_verified: true }));
       }
     } catch (err) {
       console.error("Approve error:", err);

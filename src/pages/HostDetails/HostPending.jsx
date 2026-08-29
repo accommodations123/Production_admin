@@ -44,7 +44,7 @@ function HostPending() {
         try {
             const { error: supaErr } = await supabase
                 .from('profiles')
-                .update({ status: 'approved', is_approved: true })
+                .update({ status: 'approved', is_approved: true, is_verified: true })
                 .eq('id', selectedHost.id);
 
             if (supaErr) {
