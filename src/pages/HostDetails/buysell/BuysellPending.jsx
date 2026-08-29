@@ -27,10 +27,20 @@ const BuySellPending = () => {
                     const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds);
                     const profileMap = {};
                     (profiles || []).forEach(p => { profileMap[p.id] = p; });
-                    list = list.map(l => ({
-                        ...l,
-                        sellerProfile: profileMap[l.user_id] || null
-                    }));
+                    list = list.map(l => {
+                        const prof = profileMap[l.user_id] || {};
+                        return {
+                            ...l,
+                            name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
+                            email: l.email || l.seller_email || prof.email || null,
+                            phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
+                            whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
+                            sellerEmail: l.seller_email || l.email || prof.email || null,
+                            sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
+                            sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
+                            sellerProfile: { email: prof.email, full_name: prof.full_name, phone: prof.phone, ...prof }
+                        };
+                    });
                 }
                 setListings(list);
             }

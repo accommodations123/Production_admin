@@ -298,9 +298,35 @@ const ManageListings = () => {
     const [denyTarget, setDenyTarget] = useState(null);
     const [notification, setNotification] = useState(null);
 
+    const enrichWithProfiles = async (rawList) => {
+        let list = rawList || [];
+        const userIds = [...new Set(list.map(l => l.user_id).filter(Boolean))];
+        if (userIds.length > 0) {
+            const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds);
+            const profileMap = {};
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+            list = list.map(l => {
+                const prof = profileMap[l.user_id] || {};
+                return {
+                    ...l,
+                    name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
+                    email: l.email || l.seller_email || prof.email || null,
+                    phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
+                    whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
+                    sellerEmail: l.seller_email || l.email || prof.email || null,
+                    sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
+                    sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
+                    User: { email: prof.email, fullName: prof.full_name, ...l.User }
+                };
+            });
+        }
+        return list;
+    };
+
     useEffect(() => {
         fetchPending();
         fetchApproved();
+        fetchDenied();
     }, []);
 
     const fetchPending = async () => {
@@ -308,13 +334,15 @@ const ManageListings = () => {
             const { data: supaListings, error: supaErr } = await supabase
                 .from('buy_sell')
                 .select('*')
-                .eq('status', 'pending');
+                .or('status.eq.pending,status.is.null,status.eq.draft');
 
             if (supaErr) {
                 console.error("Fetch pending listings error:", supaErr);
                 setPending([]);
             } else {
-                setPending(supaListings || []);
+                const list = (supaListings || []).filter(l => l.status !== 'approved' && l.status !== 'active' && l.status !== 'rejected' && l.status !== 'denied' && l.status !== 'blocked');
+                const enriched = await enrichWithProfiles(list);
+                setPending(enriched);
             }
         } catch (err) {
             console.error("Failed to fetch pending listings:", err);
@@ -332,10 +360,30 @@ const ManageListings = () => {
                 console.error("Fetch approved listings error:", supaErr);
                 setApproved([]);
             } else {
-                setApproved(supaListings || []);
+                const enriched = await enrichWithProfiles(supaListings || []);
+                setApproved(enriched);
             }
         } catch (err) {
             console.error("Failed to fetch approved listings:", err);
+        }
+    };
+
+    const fetchDenied = async () => {
+        try {
+            const { data: supaListings, error: supaErr } = await supabase
+                .from('buy_sell')
+                .select('*')
+                .or('status.eq.rejected,status.eq.denied,status.eq.blocked');
+
+            if (supaErr) {
+                console.error("Fetch denied listings error:", supaErr);
+                setDenied([]);
+            } else {
+                const enriched = await enrichWithProfiles(supaListings || []);
+                setDenied(enriched);
+            }
+        } catch (err) {
+            console.error("Failed to fetch denied listings:", err);
         }
     };
 
