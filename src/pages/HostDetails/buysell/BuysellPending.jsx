@@ -61,7 +61,7 @@ const BuySellPending = () => {
         try {
             const { error: supaErr } = await supabase
                 .from('buy_sell')
-                .update({ status: 'approved', is_approved: true })
+                .update({ status: 'approved' })
                 .eq('id', id);
 
             if (supaErr) throw supaErr;
@@ -86,8 +86,7 @@ const BuySellPending = () => {
                 .from('buy_sell')
                 .update({
                     status: 'rejected',
-                    is_approved: false,
-                    denial_reason: rejectionReason.trim()
+                    rejection_reason: rejectionReason.trim()
                 })
                 .eq('id', id);
 

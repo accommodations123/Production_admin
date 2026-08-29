@@ -396,7 +396,7 @@ const ManageListings = () => {
         try {
             const { error: supaErr } = await supabase
                 .from('buy_sell')
-                .update({ status: 'approved', is_approved: true })
+                .update({ status: 'approved' })
                 .eq('id', listing.id);
 
             if (supaErr) {
@@ -419,7 +419,7 @@ const ManageListings = () => {
             const listing = pending.find(l => l.id === denyTarget);
             const { error: supaErr } = await supabase
                 .from('buy_sell')
-                .update({ status: 'rejected', is_approved: false, denial_reason: reason })
+                .update({ status: 'rejected', rejection_reason: reason })
                 .eq('id', denyTarget);
 
             if (supaErr) {
@@ -429,7 +429,7 @@ const ManageListings = () => {
             }
 
             setPending(p => p.filter(x => x.id !== denyTarget));
-            setDenied(d => [...d, { ...listing, status: "denied", reason }]);
+            setDenied(d => [...d, { ...listing, status: "rejected", rejection_reason: reason }]);
             setDenyTarget(null);
             showNotification("success", "Listing denied successfully");
         } catch (err) {

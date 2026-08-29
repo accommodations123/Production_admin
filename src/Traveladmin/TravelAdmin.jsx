@@ -242,7 +242,7 @@ export default function TravelAdmin() {
   const filteredTrips = useMemo(() => {
     return trips.filter((t) => {
       const text =
-        `${t.from_city} ${t.to_city} ${t.airline} ${t.host?.full_name}`.toLowerCase();
+        `${t.origin || t.from_city || ''} ${t.destination || t.to_city || ''} ${t.title || ''} ${t.airline || ''} ${t.host?.full_name || t.host_name || ''}`.toLowerCase();
       const matchesSearch = text.includes(search.toLowerCase());
 
       // Logic: If specific tabs are selected, they override the dropdown filter
@@ -405,13 +405,13 @@ export default function TravelAdmin() {
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                                 <FlightTakeoff sx={{ fontSize: 16, color: '#888', mr: 0.5 }} />
                                 <Typography variant="body2" fontWeight={500}>
-                                  {t.from_city}, {t.from_country}
+                                  {t.origin || [t.from_city, t.from_country].filter(Boolean).join(', ') || 'Origin N/A'}
                                 </Typography>
                               </Box>
                               <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
                                 <FlightLand sx={{ fontSize: 16, color: '#888', mr: 0.5 }} />
                                 <Typography variant="body2">
-                                  {t.to_city}, {t.to_country}
+                                  {t.destination || [t.to_city, t.to_country].filter(Boolean).join(', ') || 'Destination N/A'}
                                 </Typography>
                               </Box>
                             </Box>
