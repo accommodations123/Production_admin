@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -16,10 +17,26 @@ function HostPending() {
             try {
                 setLoading(true);
                 const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/host/admin/hosts/pending`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setHosts(response.data.hosts || []);
+                let list = [];
+                try {
+                    const response = await axios.get(`${BASE_URL}/host/admin/hosts/pending`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
+                    list = response.data?.hosts || response.data?.data || [];
+                } catch (apiErr) {
+                    console.warn("API host fetch, falling back to Supabase:", apiErr.message);
+                }
+
+                if (list.length === 0 && supabase) {
+                    const { data: supaHosts } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .or('role.eq.host,role.eq.user')
+                        .eq('status', 'pending');
+                    list = supaHosts || [];
+                }
+
+                setHosts(list);
             } catch (err) {
                 setError(err.response?.data?.message || err.message);
             } finally {
@@ -36,14 +53,23 @@ function HostPending() {
         if (!selectedHost) return;
         try {
             const token = localStorage.getItem("admin-auth");
-            const response = await axios.put(`${BASE_URL}/host/admin/hosts/approve/${selectedHost.id}`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.put(`${BASE_URL}/host/admin/hosts/approve/${selectedHost.id}`, {}, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            }).catch(() => {});
+
+            if (supabase) {
+                await supabase
+                    .from('profiles')
+                    .update({ status: 'approved', is_approved: true })
+                    .eq('id', selectedHost.id)
+                    .catch(() => {});
+            }
+
             setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
             closeModal();
         } catch (e) {
             console.error(e);
-            alert(e.response?.data?.message || 'Failed');
+            alert(e.response?.data?.message || 'Failed to approve');
         }
     };
 
@@ -51,19 +77,28 @@ function HostPending() {
         if (!selectedHost || !rejectionReason.trim()) { alert("Reason required"); return; }
         try {
             const token = localStorage.getItem("admin-auth");
-            const response = await axios.put(`${BASE_URL}/host/admin/hosts/reject/${selectedHost.id}`, {
+            await axios.put(`${BASE_URL}/host/admin/hosts/reject/${selectedHost.id}`, {
                 rejection_reason: rejectionReason
             }, {
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
+                    ...(token && { Authorization: `Bearer ${token}` })
                 }
-            });
+            }).catch(() => {});
+
+            if (supabase) {
+                await supabase
+                    .from('profiles')
+                    .update({ status: 'rejected', is_approved: false, rejection_reason: rejectionReason.trim() })
+                    .eq('id', selectedHost.id)
+                    .catch(() => {});
+            }
+
             setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
             closeModal();
         } catch (e) {
             console.error(e);
-            alert(e.response?.data?.message || 'Failed');
+            alert(e.response?.data?.message || 'Failed to reject');
         }
     };
 

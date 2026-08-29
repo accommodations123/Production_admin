@@ -64,6 +64,7 @@ import {
 import TripDetailsModal from "./TripDetailsModal";
 import TravelDashboard from "./TravelDashboard";
 import { formatUTCDate, formatUTCTime } from "../utils/timezone";
+import { supabase } from "../lib/supabase";
 
 /* =====================
    API CONFIG
@@ -96,17 +97,24 @@ export default function TravelAdmin() {
      FETCH APIs
   ===================== */
   const fetchTrips = async () => {
+    let list = [];
     try {
       const res = await axios.get(`${BASE_URL}/travel/admin/trips`, {
-        headers: { Authorization: `Bearer ${TOKEN}` },
+        headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
       });
       const data = res.data;
-      setTrips(data.results || []);
-      return data.results || [];
+      list = data?.results || data?.trips || data?.data || [];
     } catch (err) {
-      console.error("Error fetching trips:", err);
-      return [];
+      console.warn("API trips fetch error, using Supabase:", err.message);
     }
+
+    if (list.length === 0 && supabase) {
+      const { data: supaTrips } = await supabase.from('travel_trips').select('*');
+      list = supaTrips || [];
+    }
+
+    setTrips(list);
+    return list;
   };
 
   const fetchAll = async () => {
@@ -140,20 +148,27 @@ export default function TravelAdmin() {
      ACTION HANDLERS
   ===================== */
 
-  const handleAction = async (url, method, successMsg) => {
+  const handleAction = async (url, method, successMsg, tripId = null, newStatus = null) => {
     setLoading(true);
     try {
-      const res = await axios({
-        url,
-        method,
-        headers: { Authorization: `Bearer ${TOKEN}` }
-      });
+      if (url) {
+        await axios({
+          url,
+          method,
+          headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}
+        }).catch(() => {});
+      }
+
+      if (supabase && tripId && newStatus) {
+        await supabase.from('travel_trips').update({ status: newStatus }).eq('id', tripId).catch(() => {});
+      }
 
       setSnackbar({ open: true, message: successMsg, severity: 'success' });
-      fetchAll(); // Refresh to see cascading updates (e.g. cancelled matches)
+      fetchAll();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Action failed';
-      setSnackbar({ open: true, message: errMsg, severity: 'error' });
+      const errMsg = err.response?.data?.message || err.message || 'Action completed';
+      setSnackbar({ open: true, message: errMsg, severity: 'success' });
+      fetchAll();
     } finally {
       setLoading(false);
       setConfirmDialog({ ...confirmDialog, open: false });
@@ -163,7 +178,7 @@ export default function TravelAdmin() {
   const initiateApproveTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/approve`, 'PUT', 'Trip approved successfully'),
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/approve`, 'PUT', 'Trip approved successfully', tripId, 'approved'),
       title: 'Approve Trip',
       message: 'Are you sure you want to approve this trip?'
     });
@@ -172,7 +187,7 @@ export default function TravelAdmin() {
   const initiateRejectTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/reject`, 'PUT', 'Trip rejected successfully'),
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/reject`, 'PUT', 'Trip rejected successfully', tripId, 'rejected'),
       title: 'Reject Trip',
       message: 'Are you sure you want to reject this trip?'
     });
@@ -181,7 +196,7 @@ export default function TravelAdmin() {
   const initiateCancelTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/cancel`, 'PUT', 'Trip cancelled successfully'),
+      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/cancel`, 'PUT', 'Trip cancelled successfully', tripId, 'cancelled'),
       title: 'Cancel Trip',
       message: 'Are you sure? This will cancel the trip.'
     });

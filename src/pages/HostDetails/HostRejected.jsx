@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -13,10 +14,26 @@ function HostRejected() {
             try {
                 setLoading(true);
                 const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/host/admin/hosts/rejected`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setHosts(response.data.hosts || []);
+                let list = [];
+                try {
+                    const response = await axios.get(`${BASE_URL}/host/admin/hosts/rejected`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
+                    list = response.data?.hosts || response.data?.data || [];
+                } catch (apiErr) {
+                    console.warn("API host fetch error, using Supabase:", apiErr.message);
+                }
+
+                if (list.length === 0 && supabase) {
+                    const { data: supaHosts } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .or('role.eq.host,role.eq.user')
+                        .eq('status', 'rejected');
+                    list = supaHosts || [];
+                }
+
+                setHosts(list);
             } catch (err) {
                 console.error(err);
             } finally {

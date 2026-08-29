@@ -10,7 +10,7 @@ import {
     XCircleIcon,
     TrashIcon,
 } from "@heroicons/react/24/outline";
-
+import { supabase } from "../../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 const api = axios.create({
@@ -48,22 +48,11 @@ const initialFormData = {
     salary_range: "",
 
     experience_level: "",
-    visa_status: [],
+    visa_status: "both",
 
     start_date: "",
 
     description: "",
-    responsibilities: [""],
-    requirements: [""],
-    preferred_skills: [""],
-    benefits: [""],
-
-    skills: {
-        primary: [""],
-        secondary: [""],
-        nice_to_have: [""]
-    },
-
     recruiter_name: "",
     recruiter_email: "",
     recruiter_phone: "",
@@ -171,14 +160,26 @@ const JobsTab = () => {
     ===================================================== */
     const fetchJobs = async () => {
         try {
-            const res = await api.get("/career/admin/jobs");
-            if (res.data.success && res.data.jobs) {
-                setJobsData(res.data.jobs);
-            } else if (Array.isArray(res.data)) {
-                setJobsData(res.data);
+            let list = [];
+            try {
+                const res = await api.get("/career/admin/jobs");
+                if (res.data?.success && res.data?.jobs) {
+                    list = res.data.jobs;
+                } else if (Array.isArray(res.data)) {
+                    list = res.data;
+                }
+            } catch (apiErr) {
+                console.warn("API career jobs fetch, using Supabase:", apiErr.message);
             }
+
+            if (list.length === 0 && supabase) {
+                const { data: supaJobs } = await supabase.from('jobs').select('*');
+                list = supaJobs || [];
+            }
+
+            setJobsData(list);
         } catch (err) {
-            console.error("FETCH JOBS ERROR", err.response?.data || err.message);
+            console.error("FETCH JOBS ERROR", err);
         }
     };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { supabase } from "../lib/supabase";
 import {
   TrashIcon,
   EyeIcon,
@@ -261,7 +262,16 @@ const Events = () => {
         if (e && e.id) eventMap.set(e.id, { ...e, status: 'rejected' });
       });
 
-      setEvents(Array.from(eventMap.values()));
+      let allEvents = Array.from(eventMap.values());
+
+      if (allEvents.length === 0 && supabase) {
+        const { data: supaEvents } = await supabase.from('events').select('*');
+        if (supaEvents && supaEvents.length > 0) {
+          allEvents = supaEvents;
+        }
+      }
+
+      setEvents(allEvents);
     } catch (err) {
       console.error("Failed to fetch events", err);
       setEvents([]);
@@ -272,19 +282,25 @@ const Events = () => {
 
   const fetchReviews = async () => {
     setLoadingReviews(true);
-    if (!token) {
-      setLoadingReviews(false);
-      return;
-    }
     try {
-      const res = await axios.get(`${API_BASE}/events/reviews/admin/reviews`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      const data = res.data;
-      setReviews(Array.isArray(data.reviews) ? data.reviews : []);
+      let revList = [];
+      try {
+        const res = await axios.get(`${API_BASE}/events/reviews/admin/reviews`, {
+          headers: token ? {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          } : {},
+        });
+        const data = res.data;
+        revList = Array.isArray(data.reviews) ? data.reviews : (Array.isArray(data) ? data : []);
+      } catch (e) {}
+
+      if (revList.length === 0 && supabase) {
+        const { data: supaReviews } = await supabase.from('event_reviews').select('*');
+        revList = supaReviews || [];
+      }
+
+      setReviews(revList);
     } catch (err) {
       console.error("Failed to fetch reviews", err);
       setReviews([]);

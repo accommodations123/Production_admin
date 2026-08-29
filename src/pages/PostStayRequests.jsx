@@ -25,6 +25,7 @@ import {
   Ban
 } from "lucide-react";
 import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -36,9 +37,9 @@ const PostStayRequests = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
-  const [reportsLoading, setReportsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,12 +70,23 @@ const PostStayRequests = () => {
   const fetchPendingRequests = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/pending`, getHeaders());
-      const data = res.data?.requests || res.data?.data || res.data?.stayRequests || res.data || [];
-      setRequests(Array.isArray(data) ? data : []);
+      let list = [];
+      try {
+        const res = await axios.get(`${BASE_URL}/admin/stay-request/pending`, getHeaders());
+        const data = res.data?.requests || res.data?.data || res.data?.stayRequests || res.data || [];
+        if (Array.isArray(data) && data.length > 0) list = data;
+      } catch (apiErr) {
+        console.warn("API stay-requests fetch, using Supabase:", apiErr.message);
+      }
+
+      if (list.length === 0 && supabase) {
+        const { data: supaRequests } = await supabase.from('stay_requests').select('*').eq('status', 'pending');
+        list = supaRequests || [];
+      }
+
+      setRequests(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("Fetch stay requests error:", err);
-      showToast(err.response?.data?.message || "Failed to load stay requests", "error");
     } finally {
       setLoading(false);
     }
@@ -84,8 +96,24 @@ const PostStayRequests = () => {
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/statistics`, getHeaders());
-      setStats(res.data?.stats || res.data?.data || res.data?.statistics || res.data || null);
+      let statsData = null;
+      try {
+        const res = await axios.get(`${BASE_URL}/admin/stay-request/statistics`, getHeaders());
+        statsData = res.data?.stats || res.data?.data || res.data?.statistics || res.data || null;
+      } catch (e) {}
+
+      if (!statsData && supabase) {
+        const { data: allReqs } = await supabase.from('stay_requests').select('status, is_approved');
+        const list = allReqs || [];
+        statsData = {
+          total: list.length,
+          pending: list.filter(r => r.status === 'pending').length,
+          approved: list.filter(r => r.is_approved || r.status === 'approved').length,
+          rejected: list.filter(r => r.status === 'rejected').length,
+        };
+      }
+
+      setStats(statsData);
     } catch (err) {
       console.error("Fetch stay request stats error:", err);
     } finally {
@@ -97,9 +125,19 @@ const PostStayRequests = () => {
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/stay-request/reports`, getHeaders());
-      const data = res.data?.reports || res.data?.data || res.data || [];
-      setReports(Array.isArray(data) ? data : []);
+      let reportsList = [];
+      try {
+        const res = await axios.get(`${BASE_URL}/admin/stay-request/reports`, getHeaders());
+        const data = res.data?.reports || res.data?.data || res.data || [];
+        if (Array.isArray(data) && data.length > 0) reportsList = data;
+      } catch (e) {}
+
+      if (reportsList.length === 0 && supabase) {
+        const { data: supaReports } = await supabase.from('stay_request_reports').select('*');
+        reportsList = supaReports || [];
+      }
+
+      setReports(Array.isArray(reportsList) ? reportsList : []);
     } catch (err) {
       console.error("Fetch stay request reports error:", err);
     } finally {

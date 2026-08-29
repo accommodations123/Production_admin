@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { supabase } from '../../../lib/supabase';
 
 const BuySellBlocked = () => {
     const [listings, setListings] = useState([]);
@@ -12,24 +13,28 @@ const BuySellBlocked = () => {
         const fetchBlocked = async () => {
             try {
                 const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/buy-sell/admin/buy-sell/blocked`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-
-                const data = response.data;
-
-                // --- FIXED DATA HANDLING ---
-                if (Array.isArray(data)) {
-                    setListings(data);
-                } else if (data && Array.isArray(data.listings)) {
-                    // This handles the { success: true, listings: [...] } format
-                    setListings(data.listings);
-                } else if (data && Array.isArray(data.data)) {
-                    setListings(data.data);
-                } else {
-                    console.error("Unexpected Data Format:", data);
-                    setListings([]);
+                let list = [];
+                try {
+                    const response = await axios.get(`${BASE_URL}/buy-sell/admin/buy-sell/blocked`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
+                    const data = response.data;
+                    if (Array.isArray(data)) list = data;
+                    else if (data && Array.isArray(data.listings)) list = data.listings;
+                    else if (data && Array.isArray(data.data)) list = data.data;
+                } catch (apiErr) {
+                    console.warn("API buysell fetch, using Supabase:", apiErr.message);
                 }
+
+                if (list.length === 0 && supabase) {
+                    const { data: supaItems } = await supabase
+                        .from('buy_sell')
+                        .select('*')
+                        .or('status.eq.rejected,status.eq.blocked');
+                    list = supaItems || [];
+                }
+
+                setListings(list);
             } catch (err) {
                 console.error("Error fetching blocked listings:", err);
                 setListings([]);

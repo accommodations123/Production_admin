@@ -6,6 +6,7 @@ import {
     XMarkIcon, PaperAirplaneIcon, ClockIcon as PendingIcon
 } from '@heroicons/react/24/outline';
 import { formatUTCDate } from '../../utils/timezone';
+import { supabase } from '../../lib/supabase';
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 const api = axios.create({
@@ -311,20 +312,24 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         const fetchApplications = async () => {
             try {
                 setLoading(true);
-                // Adding a timestamp to prevent 304 caching issues if the data changes frequently
-                const endpoint = "/career/admin/applications?t=" + new Date().getTime();
-                const res = await api.get(endpoint);
-
                 let rawData = [];
-                if (res.data.applications && Array.isArray(res.data.applications)) {
-                    rawData = res.data.applications;
-                } else if (Array.isArray(res.data)) {
-                    rawData = res.data;
-                } else if (res.data.data && Array.isArray(res.data.data)) {
-                    rawData = res.data.data;
-                } else {
-                    console.warn("Unexpected API response structure:", res.data);
-                    rawData = [];
+                try {
+                    const endpoint = "/career/admin/applications?t=" + new Date().getTime();
+                    const res = await api.get(endpoint);
+                    if (res.data.applications && Array.isArray(res.data.applications)) {
+                        rawData = res.data.applications;
+                    } else if (Array.isArray(res.data)) {
+                        rawData = res.data;
+                    } else if (res.data.data && Array.isArray(res.data.data)) {
+                        rawData = res.data.data;
+                    }
+                } catch (e) {
+                    console.warn("API career applications fetch, using Supabase:", e.message);
+                }
+
+                if (rawData.length === 0 && supabase) {
+                    const { data: supaApps } = await supabase.from('job_applications').select('*');
+                    rawData = supaApps || [];
                 }
 
                 const formattedData = rawData.map(formatApplicationData);
@@ -332,13 +337,6 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
 
             } catch (err) {
                 console.error("Error fetching applications:", err);
-                if (err.message === "Network Error") {
-                    setError("Network Error: Please check CORS or Backend URL");
-                    showNotification("Network Error", "error");
-                } else {
-                    setError(err.response?.data?.message || err.message);
-                    showNotification("Failed to load data", "error");
-                }
             } finally {
                 setLoading(false);
             }

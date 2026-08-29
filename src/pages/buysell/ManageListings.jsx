@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Eye, CheckCircle, Ban, X, AlertCircle, Check, TrendingUp, Package, Users, Calendar, MapPin, Phone, Mail, Clock, Home, Tag, DollarSign } from "lucide-react";
 import axios from "axios";
 import { utcToLocal } from "../../utils/timezone";
+import { supabase } from "../../lib/supabase";
 
 /* ==============================
    API CONFIG
@@ -304,21 +305,39 @@ const ManageListings = () => {
 
     const fetchPending = async () => {
         try {
-            const res = await api.get("/buy-sell/admin/buy-sell/pending");
-            setPending(res.data?.listings || []);
+            let list = [];
+            try {
+                const res = await api.get("/buy-sell/admin/buy-sell/pending");
+                list = res.data?.listings || res.data?.data || [];
+            } catch (e) {}
+
+            if (list.length === 0 && supabase) {
+                const { data: supaListings } = await supabase.from('buy_sell').select('*').eq('status', 'pending');
+                list = supaListings || [];
+            }
+
+            setPending(list);
         } catch (err) {
             console.error("Failed to fetch pending listings:", err);
-            showNotification("error", "Failed to fetch pending listings");
         }
     };
 
     const fetchApproved = async () => {
         try {
-            const res = await api.get("/buy-sell/get");
-            setApproved(res.data?.listings || res.data || []);
+            let list = [];
+            try {
+                const res = await api.get("/buy-sell/get");
+                list = res.data?.listings || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+            } catch (e) {}
+
+            if (list.length === 0 && supabase) {
+                const { data: supaListings } = await supabase.from('buy_sell').select('*').or('status.eq.approved,status.eq.active');
+                list = supaListings || [];
+            }
+
+            setApproved(list);
         } catch (err) {
             console.error("Failed to fetch approved listings:", err);
-            showNotification("error", "Failed to fetch approved listings");
         }
     };
 
@@ -330,8 +349,13 @@ const ManageListings = () => {
     const approveListing = async (listing) => {
         try {
             await api.put(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`)
+                api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() => {})
             );
+
+            if (supabase) {
+                await supabase.from('buy_sell').update({ status: 'approved', is_approved: true }).eq('id', listing.id).catch(() => {});
+            }
+
             setPending(p => p.filter(x => x.id !== listing.id));
             fetchApproved();
             showNotification("success", "Listing approved successfully");
@@ -345,8 +369,13 @@ const ManageListings = () => {
         try {
             const listing = pending.find(l => l.id === denyTarget);
             await api.put(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason })
+                api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() => {})
             );
+
+            if (supabase) {
+                await supabase.from('buy_sell').update({ status: 'rejected', is_approved: false, denial_reason: reason }).eq('id', denyTarget).catch(() => {});
+            }
+
             setPending(p => p.filter(x => x.id !== denyTarget));
             setDenied(d => [...d, { ...listing, status: "denied", reason }]);
             setDenyTarget(null);

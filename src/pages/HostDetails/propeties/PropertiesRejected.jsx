@@ -14,6 +14,8 @@ import {
 } from '@heroicons/react/24/outline';
 import { XCircleIcon as XCircleSolid } from '@heroicons/react/24/solid';
 
+import { supabase } from '../../../lib/supabase';
+
 const PropertyRejected = () => {
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -23,29 +25,31 @@ const PropertyRejected = () => {
     const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
     useEffect(() => {
-        console.log("🔴 PropertyRejected component mounted - fetching rejected properties...");
-
         const fetchRejected = async () => {
-            console.log("🔴 Calling API:", `${BASE_URL}/adminproperty/admin/properties/rejected`);
             try {
                 const token = localStorage.getItem("admin-auth");
-                const response = await axios.get(`${BASE_URL}/adminproperty/admin/properties/rejected`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-
-                const data = response.data;
-
-                if (Array.isArray(data)) {
-                    setProperties(data);
-                } else if (data && Array.isArray(data.data)) {
-                    setProperties(data.data);
-                } else if (data && Array.isArray(data.properties)) {
-                    setProperties(data.properties);
-                } else {
-                    console.error("Unexpected API Data Format:", data);
-                    setProperties([]);
+                let list = [];
+                try {
+                    const response = await axios.get(`${BASE_URL}/adminproperty/admin/properties/rejected`, {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {}
+                    });
+                    const data = response.data;
+                    if (Array.isArray(data)) list = data;
+                    else if (data && Array.isArray(data.data)) list = data.data;
+                    else if (data && Array.isArray(data.properties)) list = data.properties;
+                } catch (apiErr) {
+                    console.warn("API properties fetch, using Supabase:", apiErr.message);
                 }
 
+                if (list.length === 0 && supabase) {
+                    const { data: supaProps } = await supabase
+                        .from('properties')
+                        .select('*')
+                        .eq('status', 'rejected');
+                    list = supaProps || [];
+                }
+
+                setProperties(list);
             } catch (err) {
                 console.error("Error fetching rejected properties:", err);
                 setProperties([]);

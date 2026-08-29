@@ -120,13 +120,29 @@ const People = () => {
   const fetchProfiles = useCallback(async () => {
     try {
       setLoading(true);
-      const url = statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)
-        ? `${BASE_URL}/admin/people?status=${statusFilter}`
-        : `${BASE_URL}/admin/people`;
+      let list = [];
+      try {
+        const url = statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)
+          ? `${BASE_URL}/admin/people?status=${statusFilter}`
+          : `${BASE_URL}/admin/people`;
 
-      const res = await axios.get(url, getHeaders());
-      const data = res.data?.profiles || res.data?.data?.items || res.data?.data || res.data || [];
-      setProfiles(Array.isArray(data) ? data : []);
+        const res = await axios.get(url, getHeaders());
+        const data = res.data?.profiles || res.data?.data?.items || res.data?.data || res.data || [];
+        if (Array.isArray(data) && data.length > 0) list = data;
+      } catch (apiErr) {
+        console.warn("API people fetch error, using Supabase:", apiErr.message);
+      }
+
+      if (list.length === 0 && supabase) {
+        let query = supabase.from('profiles').select('*');
+        if (statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)) {
+          query = query.eq('status', statusFilter);
+        }
+        const { data: supaProfiles } = await query;
+        list = supaProfiles || [];
+      }
+
+      setProfiles(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("Fetch profiles error:", err);
       showToast(err.response?.data?.message || "Failed to load profiles", "error");
@@ -139,8 +155,27 @@ const People = () => {
   const fetchAnalytics = useCallback(async () => {
     try {
       setAnalyticsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/analytics`, getHeaders());
-      setAnalytics(res.data?.analytics || res.data?.data || res.data || null);
+      let analyticsData = null;
+      try {
+        const res = await axios.get(`${BASE_URL}/admin/people/analytics`, getHeaders());
+        analyticsData = res.data?.analytics || res.data?.data || res.data || null;
+      } catch (e) {}
+
+      if (!analyticsData && supabase) {
+        const { data: profiles } = await supabase.from('profiles').select('status, is_approved, is_blocked, is_verified, is_featured');
+        const list = profiles || [];
+        analyticsData = {
+          total: list.length,
+          approved: list.filter(p => p.is_approved || p.status === 'approved').length,
+          pending: list.filter(p => p.status === 'pending').length,
+          rejected: list.filter(p => p.status === 'rejected').length,
+          blocked: list.filter(p => p.is_blocked || p.status === 'blocked').length,
+          verified: list.filter(p => p.is_verified).length,
+          featured: list.filter(p => p.is_featured).length,
+        };
+      }
+
+      setAnalytics(analyticsData);
     } catch (err) {
       console.error("Fetch people analytics error:", err);
     } finally {
@@ -152,9 +187,19 @@ const People = () => {
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/reports`, getHeaders());
-      const data = res.data?.reports || res.data?.data || res.data || [];
-      setReports(Array.isArray(data) ? data : []);
+      let reportsList = [];
+      try {
+        const res = await axios.get(`${BASE_URL}/admin/people/reports`, getHeaders());
+        const data = res.data?.reports || res.data?.data || res.data || [];
+        if (Array.isArray(data) && data.length > 0) reportsList = data;
+      } catch (e) {}
+
+      if (reportsList.length === 0 && supabase) {
+        const { data: supaReports } = await supabase.from('people_reports').select('*');
+        reportsList = supaReports || [];
+      }
+
+      setReports(Array.isArray(reportsList) ? reportsList : []);
     } catch (err) {
       console.error("Fetch reports error:", err);
       showToast(err.response?.data?.message || "Failed to load reports", "error");
