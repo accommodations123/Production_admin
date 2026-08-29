@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { supabase } from '../../../lib/supabase';
 
 const BuySellBlocked = () => {
@@ -7,34 +6,21 @@ const BuySellBlocked = () => {
     const [loading, setLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState(null);
 
-    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
     useEffect(() => {
         const fetchBlocked = async () => {
             try {
-                const token = localStorage.getItem("admin-auth");
-                let list = [];
-                try {
-                    const response = await axios.get(`${BASE_URL}/buy-sell/admin/buy-sell/blocked`, {
-                        headers: token ? { Authorization: `Bearer ${token}` } : {}
-                    });
-                    const data = response.data;
-                    if (Array.isArray(data)) list = data;
-                    else if (data && Array.isArray(data.listings)) list = data.listings;
-                    else if (data && Array.isArray(data.data)) list = data.data;
-                } catch (apiErr) {
-                    console.warn("API buysell fetch, using Supabase:", apiErr.message);
-                }
+                setLoading(true);
+                const { data, error: supaErr } = await supabase
+                    .from('buy_sell')
+                    .select('*')
+                    .or('status.eq.rejected,status.eq.blocked');
 
-                if (list.length === 0 && supabase) {
-                    const { data: supaItems } = await supabase
-                        .from('buy_sell')
-                        .select('*')
-                        .or('status.eq.rejected,status.eq.blocked');
-                    list = supaItems || [];
+                if (supaErr) {
+                    console.error("Error fetching blocked listings:", supaErr);
+                    setListings([]);
+                } else {
+                    setListings(data || []);
                 }
-
-                setListings(list);
             } catch (err) {
                 console.error("Error fetching blocked listings:", err);
                 setListings([]);
@@ -44,7 +30,7 @@ const BuySellBlocked = () => {
         };
 
         fetchBlocked();
-    }, [BASE_URL]);
+    }, []);
 
     return (
         <div className="space-y-4">

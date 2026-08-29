@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { supabase } from '../../lib/supabase';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 function HostRejected() {
     const [hosts, setHosts] = useState([]);
@@ -13,27 +10,17 @@ function HostRejected() {
         const fetchHosts = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("admin-auth");
-                let list = [];
-                try {
-                    const response = await axios.get(`${BASE_URL}/host/admin/hosts/rejected`, {
-                        headers: token ? { Authorization: `Bearer ${token}` } : {}
-                    });
-                    list = response.data?.hosts || response.data?.data || [];
-                } catch (apiErr) {
-                    console.warn("API host fetch error, using Supabase:", apiErr.message);
-                }
+                const { data, error: supaErr } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .or('role.eq.host,role.eq.user')
+                    .eq('status', 'rejected');
 
-                if (list.length === 0 && supabase) {
-                    const { data: supaHosts } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .or('role.eq.host,role.eq.user')
-                        .eq('status', 'rejected');
-                    list = supaHosts || [];
+                if (supaErr) {
+                    console.error("Fetch rejected hosts error:", supaErr);
+                } else {
+                    setHosts(data || []);
                 }
-
-                setHosts(list);
             } catch (err) {
                 console.error(err);
             } finally {

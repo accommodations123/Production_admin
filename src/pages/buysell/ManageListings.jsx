@@ -305,18 +305,17 @@ const ManageListings = () => {
 
     const fetchPending = async () => {
         try {
-            let list = [];
-            try {
-                const res = await api.get("/buy-sell/admin/buy-sell/pending");
-                list = res.data?.listings || res.data?.data || [];
-            } catch (e) {}
+            const { data: supaListings, error: supaErr } = await supabase
+                .from('buy_sell')
+                .select('*')
+                .eq('status', 'pending');
 
-            if (list.length === 0 && supabase) {
-                const { data: supaListings } = await supabase.from('buy_sell').select('*').eq('status', 'pending');
-                list = supaListings || [];
+            if (supaErr) {
+                console.error("Fetch pending listings error:", supaErr);
+                setPending([]);
+            } else {
+                setPending(supaListings || []);
             }
-
-            setPending(list);
         } catch (err) {
             console.error("Failed to fetch pending listings:", err);
         }
@@ -324,18 +323,17 @@ const ManageListings = () => {
 
     const fetchApproved = async () => {
         try {
-            let list = [];
-            try {
-                const res = await api.get("/buy-sell/get");
-                list = res.data?.listings || res.data?.data || (Array.isArray(res.data) ? res.data : []);
-            } catch (e) {}
+            const { data: supaListings, error: supaErr } = await supabase
+                .from('buy_sell')
+                .select('*')
+                .or('status.eq.approved,status.eq.active');
 
-            if (list.length === 0 && supabase) {
-                const { data: supaListings } = await supabase.from('buy_sell').select('*').or('status.eq.approved,status.eq.active');
-                list = supaListings || [];
+            if (supaErr) {
+                console.error("Fetch approved listings error:", supaErr);
+                setApproved([]);
+            } else {
+                setApproved(supaListings || []);
             }
-
-            setApproved(list);
         } catch (err) {
             console.error("Failed to fetch approved listings:", err);
         }
@@ -348,12 +346,15 @@ const ManageListings = () => {
 
     const approveListing = async (listing) => {
         try {
-            await api.put(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${listing.id}/approve`).catch(() => {})
-            );
+            const { error: supaErr } = await supabase
+                .from('buy_sell')
+                .update({ status: 'approved', is_approved: true })
+                .eq('id', listing.id);
 
-            if (supabase) {
-                await supabase.from('buy_sell').update({ status: 'approved', is_approved: true }).eq('id', listing.id).catch(() => {});
+            if (supaErr) {
+                console.error("Failed to approve listing:", supaErr);
+                showNotification("error", "Failed to approve listing: " + supaErr.message);
+                return;
             }
 
             setPending(p => p.filter(x => x.id !== listing.id));
@@ -368,12 +369,15 @@ const ManageListings = () => {
     const denyListing = async (reason) => {
         try {
             const listing = pending.find(l => l.id === denyTarget);
-            await api.put(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() =>
-                api.patch(`/buy-sell/admin/buy-sell/${denyTarget}/block`, { reason }).catch(() => {})
-            );
+            const { error: supaErr } = await supabase
+                .from('buy_sell')
+                .update({ status: 'rejected', is_approved: false, denial_reason: reason })
+                .eq('id', denyTarget);
 
-            if (supabase) {
-                await supabase.from('buy_sell').update({ status: 'rejected', is_approved: false, denial_reason: reason }).eq('id', denyTarget).catch(() => {});
+            if (supaErr) {
+                console.error("Failed to deny listing:", supaErr);
+                showNotification("error", "Failed to deny listing: " + supaErr.message);
+                return;
             }
 
             setPending(p => p.filter(x => x.id !== denyTarget));

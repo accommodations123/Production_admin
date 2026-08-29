@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { supabase } from '../../../lib/supabase';
-
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 function EventApproved() {
     const [events, setEvents] = useState([]);
@@ -13,27 +10,17 @@ function EventApproved() {
         const fetchEvents = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("admin-auth");
-                let list = [];
-                try {
-                    const response = await axios.get(`${BASE_URL}/events/admin/events/approved`, {
-                        headers: token ? { Authorization: `Bearer ${token}` } : {}
-                    });
-                    const d = response.data;
-                    list = Array.isArray(d) ? d : (d?.events || d?.data || []);
-                } catch (apiErr) {
-                    console.warn("API events fetch, using Supabase:", apiErr.message);
-                }
+                const { data, error: supaErr } = await supabase
+                    .from('events')
+                    .select('*')
+                    .or('status.eq.approved,is_approved.eq.true');
 
-                if (list.length === 0 && supabase) {
-                    const { data: supaEvents } = await supabase
-                        .from('events')
-                        .select('*')
-                        .or('status.eq.approved,is_approved.eq.true');
-                    list = supaEvents || [];
+                if (supaErr) {
+                    console.error("Fetch approved events error:", supaErr);
+                    setEvents([]);
+                } else {
+                    setEvents(data || []);
                 }
-
-                setEvents(list);
             } catch (e) {
                 console.error(e);
             } finally {

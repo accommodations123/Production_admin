@@ -218,60 +218,14 @@ const Events = () => {
   // --- DATA FETCHING ---
   const fetchEvents = async () => {
     setLoading(true);
-    if (!token) {
-      console.error("Token missing");
-      setLoading(false);
-      return;
-    }
     try {
-      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-      const [pendingRes, approvedRes, rejectedRes] = await Promise.all([
-        axios.get(`${API_BASE}/events/admin/events/pending`, { headers })
-          .catch(() => axios.get(`${API_BASE}/events/admin/pending`, { headers }))
-          .catch(err => { console.error("Pending events error:", err); return { data: { events: [] } }; }),
-        axios.get(`${API_BASE}/events/admin/events/approved`, { headers })
-          .catch(() => axios.get(`${API_BASE}/events/admin/approved`, { headers }))
-          .catch(err => { console.error("Approved events error:", err); return { data: { events: [] } }; }),
-        axios.get(`${API_BASE}/events/admin/events/rejected`, { headers })
-          .catch(() => axios.get(`${API_BASE}/events/admin/rejected`, { headers }))
-          .catch(err => { console.error("Rejected events error:", err); return { data: { events: [] } }; })
-      ]);
-
-      const pendingData = pendingRes.data || {};
-      const approvedData = approvedRes.data || {};
-      const rejectedData = rejectedRes.data || {};
-
-      const pendingEvents = Array.isArray(pendingData) ? pendingData : (Array.isArray(pendingData.events) ? pendingData.events : (Array.isArray(pendingData.data) ? pendingData.data : []));
-      const approvedEvents = Array.isArray(approvedData) ? approvedData : (Array.isArray(approvedData.events) ? approvedData.events : (Array.isArray(approvedData.data) ? approvedData.data : []));
-      const rejectedEvents = Array.isArray(rejectedData) ? rejectedData : (Array.isArray(rejectedData.events) ? rejectedData.events : (Array.isArray(rejectedData.data) ? rejectedData.data : []));
-
-      // Add status property if missing
-      const formattedApproved = approvedEvents.map(e => ({ ...e, status: e.status || 'approved' }));
-      const formattedRejected = rejectedEvents.map(e => ({ ...e, status: e.status || 'rejected' }));
-      const formattedPending = pendingEvents.map(e => ({ ...e, status: e.status || 'pending' }));
-
-      // Deduplicate by ID and prioritize approved/rejected status over pending
-      const eventMap = new Map();
-      formattedPending.forEach(e => {
-        if (e && e.id) eventMap.set(e.id, e);
-      });
-      formattedApproved.forEach(e => {
-        if (e && e.id) eventMap.set(e.id, { ...e, status: 'approved' });
-      });
-      formattedRejected.forEach(e => {
-        if (e && e.id) eventMap.set(e.id, { ...e, status: 'rejected' });
-      });
-
-      let allEvents = Array.from(eventMap.values());
-
-      if (allEvents.length === 0 && supabase) {
-        const { data: supaEvents } = await supabase.from('events').select('*');
-        if (supaEvents && supaEvents.length > 0) {
-          allEvents = supaEvents;
-        }
+      const { data, error: supaErr } = await supabase.from('events').select('*');
+      if (supaErr) {
+        console.error("Fetch events error:", supaErr);
+        setEvents([]);
+      } else {
+        setEvents(data || []);
       }
-
-      setEvents(allEvents);
     } catch (err) {
       console.error("Failed to fetch events", err);
       setEvents([]);
@@ -283,24 +237,12 @@ const Events = () => {
   const fetchReviews = async () => {
     setLoadingReviews(true);
     try {
-      let revList = [];
-      try {
-        const res = await axios.get(`${API_BASE}/events/reviews/admin/reviews`, {
-          headers: token ? {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          } : {},
-        });
-        const data = res.data;
-        revList = Array.isArray(data.reviews) ? data.reviews : (Array.isArray(data) ? data : []);
-      } catch (e) {}
-
-      if (revList.length === 0 && supabase) {
-        const { data: supaReviews } = await supabase.from('event_reviews').select('*');
-        revList = supaReviews || [];
+      const { data, error: supaErr } = await supabase.from('event_reviews').select('*');
+      if (supaErr) {
+        setReviews([]);
+      } else {
+        setReviews(data || []);
       }
-
-      setReviews(revList);
     } catch (err) {
       console.error("Failed to fetch reviews", err);
       setReviews([]);
@@ -352,28 +294,23 @@ const Events = () => {
 
   // --- ACTIONS ---
   const handleApprove = async (id) => {
-    if (!token) return;
     try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      };
+      const { error: supaErr } = await supabase
+        .from('events')
+        .update({ status: 'approved', is_approved: true })
+        .eq('id', id);
 
-      let res;
-      try {
-        res = await axios.put(`${API_BASE}/events/admin/events/approve/${id}`, {}, { headers });
-      } catch {
-        res = await axios.put(`${API_BASE}/events/admin/approve/${id}`, {}, { headers });
+      if (supaErr) {
+        console.error("Approval error:", supaErr);
+        return;
       }
 
-      if (res && (res.status === 200 || res.status === 204 || res.data)) {
-        setEvents(prevEvents =>
-          prevEvents.map(event =>
-            event.id === id ? { ...event, status: 'approved' } : event
-          )
-        );
-        setRefreshKey(prev => prev + 1);
-      }
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.id === id ? { ...event, status: 'approved' } : event
+        )
+      );
+      setRefreshKey(prev => prev + 1);
     } catch (err) {
       console.error("Approval error:", err);
     }
@@ -385,58 +322,48 @@ const Events = () => {
   };
 
   const handleRejectConfirm = async () => {
-    if (!rejectionReason.trim() || !token) return;
+    if (!rejectionReason.trim() || !currentEventId) return;
 
     try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      };
-      const body = { rejection_reason: rejectionReason };
+      const { error: supaErr } = await supabase
+        .from('events')
+        .update({
+          status: 'rejected',
+          is_approved: false,
+          rejection_reason: rejectionReason.trim()
+        })
+        .eq('id', currentEventId);
 
-      let res;
-      try {
-        res = await axios.put(`${API_BASE}/events/admin/events/reject/${currentEventId}`, body, { headers });
-      } catch {
-        res = await axios.put(`${API_BASE}/events/admin/reject/${currentEventId}`, body, { headers });
+      if (supaErr) {
+        console.error("Rejection error:", supaErr);
+        return;
       }
 
-      if (res && (res.status === 200 || res.status === 204 || res.data)) {
-        setRejectModalOpen(false);
-        setRejectionReason("");
-        setEvents(prevEvents =>
-          prevEvents.map(event =>
-            event.id === currentEventId ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
-          )
-        );
-        setRefreshKey(prev => prev + 1);
-      }
+      setRejectModalOpen(false);
+      setRejectionReason("");
+      setEvents(prevEvents =>
+        prevEvents.map(event =>
+          event.id === currentEventId ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
+        )
+      );
+      setRefreshKey(prev => prev + 1);
     } catch (err) {
       console.error("Rejection error:", err);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!token) return;
     if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
 
     try {
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      };
-
-      let res;
-      try {
-        res = await axios.delete(`${API_BASE}/events/admin/events/delete/${id}`, { headers });
-      } catch {
-        res = await axios.delete(`${API_BASE}/events/admin/delete/${id}`, { headers });
+      const { error: supaErr } = await supabase.from('events').delete().eq('id', id);
+      if (supaErr) {
+        console.error("Deletion error:", supaErr);
+        return;
       }
 
-      if (res && (res.status === 200 || res.status === 204 || res.data)) {
-        setEvents(prevEvents => prevEvents.filter(event => event.id !== id));
-        setRefreshKey(prev => prev + 1);
-      }
+      setEvents(prevEvents => prevEvents.filter(event => event.id !== id));
+      setRefreshKey(prev => prev + 1);
     } catch (err) {
       console.error("Deletion error:", err);
     }

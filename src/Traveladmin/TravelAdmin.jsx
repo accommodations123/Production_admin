@@ -97,24 +97,19 @@ export default function TravelAdmin() {
      FETCH APIs
   ===================== */
   const fetchTrips = async () => {
-    let list = [];
     try {
-      const res = await axios.get(`${BASE_URL}/travel/admin/trips`, {
-        headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
-      });
-      const data = res.data;
-      list = data?.results || data?.trips || data?.data || [];
+      const { data, error: supaErr } = await supabase.from('travel_trips').select('*');
+      if (supaErr) {
+        console.error("Fetch trips error:", supaErr);
+        setTrips([]);
+        return [];
+      }
+      setTrips(data || []);
+      return data || [];
     } catch (err) {
-      console.warn("API trips fetch error, using Supabase:", err.message);
+      console.error("Error fetching trips:", err);
+      return [];
     }
-
-    if (list.length === 0 && supabase) {
-      const { data: supaTrips } = await supabase.from('travel_trips').select('*');
-      list = supaTrips || [];
-    }
-
-    setTrips(list);
-    return list;
   };
 
   const fetchAll = async () => {
@@ -148,27 +143,23 @@ export default function TravelAdmin() {
      ACTION HANDLERS
   ===================== */
 
-  const handleAction = async (url, method, successMsg, tripId = null, newStatus = null) => {
+  const handleAction = async (tripId, newStatus, successMsg) => {
     setLoading(true);
     try {
-      if (url) {
-        await axios({
-          url,
-          method,
-          headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}
-        }).catch(() => {});
-      }
-
-      if (supabase && tripId && newStatus) {
-        await supabase.from('travel_trips').update({ status: newStatus }).eq('id', tripId).catch(() => {});
+      if (tripId && newStatus) {
+        const { error: supaErr } = await supabase.from('travel_trips').update({ status: newStatus }).eq('id', tripId);
+        if (supaErr) {
+          console.error("Travel trip update error:", supaErr);
+          setSnackbar({ open: true, message: supaErr.message || 'Action failed', severity: 'error' });
+          return;
+        }
       }
 
       setSnackbar({ open: true, message: successMsg, severity: 'success' });
       fetchAll();
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Action completed';
-      setSnackbar({ open: true, message: errMsg, severity: 'success' });
-      fetchAll();
+      const errMsg = err.message || 'Action failed';
+      setSnackbar({ open: true, message: errMsg, severity: 'error' });
     } finally {
       setLoading(false);
       setConfirmDialog({ ...confirmDialog, open: false });
@@ -178,7 +169,7 @@ export default function TravelAdmin() {
   const initiateApproveTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/approve`, 'PUT', 'Trip approved successfully', tripId, 'approved'),
+      action: () => handleAction(tripId, 'approved', 'Trip approved successfully'),
       title: 'Approve Trip',
       message: 'Are you sure you want to approve this trip?'
     });
@@ -187,7 +178,7 @@ export default function TravelAdmin() {
   const initiateRejectTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/reject`, 'PUT', 'Trip rejected successfully', tripId, 'rejected'),
+      action: () => handleAction(tripId, 'rejected', 'Trip rejected successfully'),
       title: 'Reject Trip',
       message: 'Are you sure you want to reject this trip?'
     });
@@ -196,7 +187,7 @@ export default function TravelAdmin() {
   const initiateCancelTrip = (tripId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/trips/${tripId}/cancel`, 'PUT', 'Trip cancelled successfully', tripId, 'cancelled'),
+      action: () => handleAction(tripId, 'cancelled', 'Trip cancelled successfully'),
       title: 'Cancel Trip',
       message: 'Are you sure? This will cancel the trip.'
     });
@@ -205,7 +196,20 @@ export default function TravelAdmin() {
   const initiateBlockHost = (hostId) => {
     setConfirmDialog({
       open: true,
-      action: () => handleAction(`${BASE_URL}/travel/admin/hosts/${hostId}/block`, 'PUT', 'Host blocked. All trips cancelled.'),
+      action: async () => {
+        setLoading(true);
+        try {
+          await supabase.from('profiles').update({ status: 'blocked', is_blocked: true }).eq('id', hostId);
+          await supabase.from('travel_trips').update({ status: 'cancelled' }).eq('host_id', hostId);
+          setSnackbar({ open: true, message: 'Host blocked. All trips cancelled.', severity: 'success' });
+          fetchAll();
+        } catch (err) {
+          setSnackbar({ open: true, message: 'Failed to block host', severity: 'error' });
+        } finally {
+          setLoading(false);
+          setConfirmDialog({ ...confirmDialog, open: false });
+        }
+      },
       title: 'Block Host',
       message: 'WARNING: This will block the host and CANCEL ALL their trips. This action is irreversible.'
     });

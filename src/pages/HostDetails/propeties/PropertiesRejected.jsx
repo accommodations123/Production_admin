@@ -22,34 +22,21 @@ const PropertyRejected = () => {
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
     useEffect(() => {
         const fetchRejected = async () => {
             try {
-                const token = localStorage.getItem("admin-auth");
-                let list = [];
-                try {
-                    const response = await axios.get(`${BASE_URL}/adminproperty/admin/properties/rejected`, {
-                        headers: token ? { Authorization: `Bearer ${token}` } : {}
-                    });
-                    const data = response.data;
-                    if (Array.isArray(data)) list = data;
-                    else if (data && Array.isArray(data.data)) list = data.data;
-                    else if (data && Array.isArray(data.properties)) list = data.properties;
-                } catch (apiErr) {
-                    console.warn("API properties fetch, using Supabase:", apiErr.message);
-                }
+                setLoading(true);
+                const { data, error: supaErr } = await supabase
+                    .from('properties')
+                    .select('*')
+                    .eq('status', 'rejected');
 
-                if (list.length === 0 && supabase) {
-                    const { data: supaProps } = await supabase
-                        .from('properties')
-                        .select('*')
-                        .eq('status', 'rejected');
-                    list = supaProps || [];
+                if (supaErr) {
+                    console.error("Error fetching rejected properties:", supaErr);
+                    setProperties([]);
+                } else {
+                    setProperties(data || []);
                 }
-
-                setProperties(list);
             } catch (err) {
                 console.error("Error fetching rejected properties:", err);
                 setProperties([]);

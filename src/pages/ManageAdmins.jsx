@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { supabase } from "../lib/supabase";
 import {
     UserPlus,
     Users,
@@ -178,20 +178,37 @@ function CreateAdminModal({ isOpen, onClose, onCreated }) {
         if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/.test(form.password)) {
             setError("Password must contain uppercase, lowercase, number, and special character"); return;
         }
-
         setLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/admin/register`, form, {
-                headers: getAuthHeaders(),
+            const { data: authData, error: authErr } = await supabase.auth.signUp({
+                email: form.email,
+                password: form.password,
+                options: {
+                    data: {
+                        full_name: form.name,
+                        role: form.role,
+                    }
+                }
             });
 
-            const data = res.data;
+            if (authErr) throw authErr;
 
-            onCreated(data.data || data.admin);
+            if (authData?.user) {
+                await supabase.from('profiles').upsert({
+                    id: authData.user.id,
+                    email: form.email,
+                    full_name: form.name,
+                    role: form.role,
+                    status: 'approved',
+                    is_approved: true,
+                });
+            }
+
+            onCreated({ name: form.name, email: form.email, role: form.role });
             setForm({ name: "", email: "", password: "", role: "admin" });
             onClose();
         } catch (err) {
-            setError(err.response?.data?.message || "Network error. Please try again.");
+            setError(err.message || "Failed to create account.");
         }
         setLoading(false);
     };
@@ -442,15 +459,20 @@ export default function ManageAdmins() {
     const fetchAdmins = async (page = 1) => {
         setLoading(true);
         try {
-            const res = await axios.get(`${API_URL}/admin/admins?page=${page}&limit=20`, {
-                headers: getAuthHeaders(),
-            });
+            const { data, error: supaErr } = await supabase
+                .from('profiles')
+                .select('*')
+                .in('role', ['admin', 'super_admin', 'recruiter']);
 
-            const data = res.data;
-            setAdmins(data.data || []);
-            setPagination(data.pagination || { page: 1, totalPages: 1, total: 0 });
+            if (supaErr) {
+                console.error("Fetch admins error:", supaErr);
+                setAdmins([]);
+            } else {
+                setAdmins(data || []);
+                setPagination({ page: 1, totalPages: 1, total: (data || []).length });
+            }
         } catch (err) {
-            showToast(err.response?.data?.message || "Network error fetching admins", "error");
+            showToast(err.message || "Error fetching admins", "error");
         }
         setLoading(false);
     };

@@ -294,45 +294,9 @@ const HostingApproval = () => {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem("admin-auth");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const { data: supaProps, error: supaErr } = await supabase.from('properties').select('*');
 
-        // Fetch all 3 endpoints concurrently
-        const [pendingRes, approvedRes, rejectedRes] = await Promise.allSettled([
-          axios.get(API.PENDING, { headers }),
-          axios.get(API.APPROVED, { headers }),
-          axios.get(API.REJECTED, { headers })
-        ]);
-
-        // Helper to extract data safely
-        const extractData = (res) => {
-          if (res.status === 'fulfilled') {
-            const data = res.value?.data;
-            if (Array.isArray(data)) return data;
-            if (Array.isArray(data?.data)) return data.data;
-            if (Array.isArray(data?.properties)) return data.properties;
-            return [];
-          }
-          console.error("Fetch failed:", res.reason);
-          return [];
-        };
-
-        const pendingList = extractData(pendingRes).map(item => ({ ...item, status: 'pending' }));
-        const approvedList = extractData(approvedRes).map(item => ({ ...item, status: 'approved' }));
-        const rejectedList = extractData(rejectedRes).map(item => ({ ...item, status: 'rejected' }));
-
-        let allRawProperties = [...pendingList, ...approvedList, ...rejectedList];
-
-        if (allRawProperties.length === 0 && supabase) {
-          try {
-            const { data: supaProps } = await supabase.from('properties').select('*');
-            if (supaProps && supaProps.length > 0) {
-              allRawProperties = supaProps;
-            }
-          } catch (e) {
-            console.warn("Supabase properties fallback note:", e);
-          }
-        }
+        let allRawProperties = supaProps || [];
 
         const normalized = allRawProperties.map(normalize);
 
@@ -395,12 +359,15 @@ const HostingApproval = () => {
     if (actionInProgress) return;
     setActionInProgress(true);
     try {
-      await axios.put(API.APPROVE(id), {}, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).catch(() => {});
+      const { error: supaErr } = await supabase
+        .from('properties')
+        .update({ status: 'approved', is_approved: true })
+        .eq('id', id);
 
-      if (supabase) {
-        await supabase.from('properties').update({ status: 'approved', is_approved: true }).eq('id', id).catch(() => {});
+      if (supaErr) {
+        console.error("Supabase approve error:", supaErr);
+        showToast("Failed to approve property: " + supaErr.message, 'error');
+        return;
       }
 
       // Update local state
@@ -436,14 +403,15 @@ const HostingApproval = () => {
     setActionInProgress(true);
 
     try {
-      await axios.put(API.REJECT(currentPropertyId), {
-        reason: rejectionReason.trim(),
-      }, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).catch(() => {});
+      const { error: supaErr } = await supabase
+        .from('properties')
+        .update({ status: 'rejected', is_approved: false, rejection_reason: rejectionReason.trim() })
+        .eq('id', currentPropertyId);
 
-      if (supabase) {
-        await supabase.from('properties').update({ status: 'rejected', is_approved: false, rejection_reason: rejectionReason.trim() }).eq('id', currentPropertyId).catch(() => {});
+      if (supaErr) {
+        console.error("Supabase reject error:", supaErr);
+        showToast("Failed to reject property: " + supaErr.message, 'error');
+        return;
       }
 
       // Update local state

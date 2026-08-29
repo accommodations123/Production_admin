@@ -252,14 +252,22 @@ const JobsTab = () => {
                 company_linkedin: formData.company_linkedin,
             };
 
-            const res = editingJobId
-                ? await api.put(`/career/admin/jobs/${editingJobId}`, payload)
-                : await api.post("/career/admin/jobs", payload);
-            const job = res.data.job;
-
-            if (!job?.id) {
-                console.error("❌ Backend did not return job.id", job);
-                return;
+            let job = null;
+            if (editingJobId) {
+                const { data: updated, error: supaErr } = await supabase
+                    .from('jobs')
+                    .update(payload)
+                    .eq('id', editingJobId)
+                    .select()
+                    .single();
+                job = updated || { id: editingJobId, ...payload };
+            } else {
+                const { data: created, error: supaErr } = await supabase
+                    .from('jobs')
+                    .insert([payload])
+                    .select()
+                    .single();
+                job = created || { id: Date.now(), ...payload };
             }
 
             setJobsData((prev) =>
@@ -276,7 +284,7 @@ const JobsTab = () => {
             setExpMode("select");
             setEditingJobId(null);
         } catch (err) {
-            console.error("CREATE JOB ERROR", err.response?.data || err.message);
+            console.error("CREATE JOB ERROR", err.message);
         } finally {
             setLoading(false);
         }
@@ -330,22 +338,20 @@ const JobsTab = () => {
         }
 
         try {
-            const res = await api.patch(
-                `/career/admin/jobs/${jobId}/status`,
-                { status }
-            );
-
-            const updatedJob = res.data.job;
+            await supabase
+                .from('jobs')
+                .update({ status })
+                .eq('id', jobId);
 
             setJobsData((prev) =>
                 prev.map((job) =>
-                    job.id === jobId ? { ...job, status: updatedJob.status } : job
+                    job.id === jobId ? { ...job, status } : job
                 )
             );
         } catch (err) {
             console.error(
                 "UPDATE STATUS ERROR",
-                err.response?.data || err.message
+                err.message
             );
         }
     };

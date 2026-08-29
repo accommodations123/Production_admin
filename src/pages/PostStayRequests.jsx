@@ -155,7 +155,12 @@ const PostStayRequests = () => {
   const handleApprove = async (id) => {
     try {
       setActionLoading(`approve-${id}`);
-      await axios.put(`${BASE_URL}/admin/stay-request/approve/${id}`, {}, getHeaders());
+      const { error: supaErr } = await supabase
+        .from('stay_requests')
+        .update({ status: 'approved', is_approved: true })
+        .eq('id', id);
+
+      if (supaErr) throw supaErr;
       showToast("Stay request approved successfully", "success");
       fetchPendingRequests();
       fetchStats();
@@ -164,7 +169,7 @@ const PostStayRequests = () => {
       }
     } catch (err) {
       console.error("Approve error:", err);
-      showToast(err.response?.data?.message || "Failed to approve request", "error");
+      showToast(err.message || "Failed to approve request", "error");
     } finally {
       setActionLoading(null);
     }
@@ -174,11 +179,16 @@ const PostStayRequests = () => {
   const handleReject = async (id) => {
     try {
       setActionLoading(`reject-${id}`);
-      await axios.put(
-        `${BASE_URL}/admin/stay-request/reject/${id}`,
-        { reason: rejectReason || "Request does not meet quality/policy guidelines" },
-        getHeaders()
-      );
+      const { error: supaErr } = await supabase
+        .from('stay_requests')
+        .update({
+          status: 'rejected',
+          is_approved: false,
+          rejection_reason: rejectReason || "Request does not meet quality/policy guidelines"
+        })
+        .eq('id', id);
+
+      if (supaErr) throw supaErr;
       showToast("Stay request rejected", "success");
       setRejectModalId(null);
       setRejectReason("");
@@ -189,7 +199,7 @@ const PostStayRequests = () => {
       }
     } catch (err) {
       console.error("Reject error:", err);
-      showToast(err.response?.data?.message || "Failed to reject request", "error");
+      showToast(err.message || "Failed to reject request", "error");
     } finally {
       setActionLoading(null);
     }

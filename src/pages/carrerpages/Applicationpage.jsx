@@ -354,17 +354,20 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         setSelectedApplication(null);
 
         try {
-            const endpoint = "/career/admin/applications/" + id;
-            const res = await api.get(endpoint);
+            const { data, error: supaErr } = await supabase
+                .from('job_applications')
+                .select('*')
+                .eq('id', id)
+                .single();
 
-            const rawData = res.data.application || res.data.data || res.data;
-
-            if (!rawData) {
-                throw new Error("Application data not found in response");
+            if (!data) {
+                const found = applications.find(a => a.id === id);
+                if (found) setSelectedApplication(found);
+                else throw new Error("Application not found");
+            } else {
+                const formattedData = formatApplicationData(data);
+                setSelectedApplication(formattedData);
             }
-
-            const formattedData = formatApplicationData(rawData);
-            setSelectedApplication(formattedData);
 
         } catch (err) {
             console.error("Error fetching details:", err);
@@ -394,16 +397,17 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
         setShowApplicationModal(false);
 
         try {
-            const endpoint = "/career/admin/applications/" + appId + "/status";
-            const payload = { status: newStatus };
+            const { error: supaErr } = await supabase
+                .from('job_applications')
+                .update({ status: newStatus })
+                .eq('id', appId);
 
-            await api.patch(endpoint, payload);
+            if (supaErr) throw supaErr;
             showNotification(`Application marked as ${newStatus}`);
         } catch (err) {
-            console.error("Status update failed:", err.response?.data || err);
+            console.error("Status update failed:", err);
             setApplications(originalApps);
-            const serverMsg = err.response?.data?.message || err.response?.data?.error || "Failed to update status";
-            showNotification(serverMsg, "error");
+            showNotification(err.message || "Failed to update status", "error");
         }
     };
 
