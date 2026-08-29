@@ -118,62 +118,60 @@ const People = () => {
 
   /* ═══════ FETCH PROFILES ═══════ */
   const fetchProfiles = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      let list = [];
-      try {
-        const url = statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)
-          ? `${BASE_URL}/admin/people?status=${statusFilter}`
-          : `${BASE_URL}/admin/people`;
+      const { data: supaProfiles, error: supaErr } = await supabase.from('profiles').select('*');
+      if (supaErr) throw supaErr;
 
-        const res = await axios.get(url, getHeaders());
-        const data = res.data?.profiles || res.data?.data?.items || res.data?.data || res.data || [];
-        if (Array.isArray(data) && data.length > 0) list = data;
-      } catch (apiErr) {
-        console.warn("API people fetch error, using Supabase:", apiErr.message);
-      }
+      let rawList = (supaProfiles || []).map(p => ({
+        ...p,
+        status: p.status || (p.is_approved ? 'approved' : 'pending')
+      }));
 
-      if (list.length === 0 && supabase) {
-        let query = supabase.from('profiles').select('*');
-        if (statusFilter !== "all" && ["pending", "approved", "rejected", "blocked"].includes(statusFilter)) {
-          query = query.eq('status', statusFilter);
+      let list = rawList;
+      if (statusFilter !== "all") {
+        if (statusFilter === "pending") {
+          list = rawList.filter(p => p.status === 'pending' || (!p.is_approved && p.status !== 'rejected' && p.status !== 'blocked'));
+        } else if (statusFilter === "approved") {
+          list = rawList.filter(p => p.status === 'approved' || p.is_approved === true);
+        } else if (statusFilter === "rejected") {
+          list = rawList.filter(p => p.status === 'rejected');
+        } else if (statusFilter === "blocked") {
+          list = rawList.filter(p => p.status === 'blocked' || p.is_blocked === true);
         }
-        const { data: supaProfiles } = await query;
-        list = supaProfiles || [];
       }
 
       setProfiles(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("Fetch profiles error:", err);
-      showToast(err.response?.data?.message || "Failed to load profiles", "error");
+      showToast(err.message || "Failed to load profiles", "error");
+      setProfiles([]);
     } finally {
       setLoading(false);
     }
-  }, [getHeaders, statusFilter]);
+  }, [statusFilter]);
 
   /* ═══════ FETCH ANALYTICS ═══════ */
   const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
     try {
-      setAnalyticsLoading(true);
-      let analyticsData = null;
-      try {
-        const res = await axios.get(`${BASE_URL}/admin/people/analytics`, getHeaders());
-        analyticsData = res.data?.analytics || res.data?.data || res.data || null;
-      } catch (e) {}
+      const { data: profiles, error: supaErr } = await supabase.from('profiles').select('status, is_approved, is_blocked, is_verified, is_featured');
+      if (supaErr) throw supaErr;
 
-      if (!analyticsData && supabase) {
-        const { data: profiles } = await supabase.from('profiles').select('status, is_approved, is_blocked, is_verified, is_featured');
-        const list = profiles || [];
-        analyticsData = {
-          total: list.length,
-          approved: list.filter(p => p.is_approved || p.status === 'approved').length,
-          pending: list.filter(p => p.status === 'pending').length,
-          rejected: list.filter(p => p.status === 'rejected').length,
-          blocked: list.filter(p => p.is_blocked || p.status === 'blocked').length,
-          verified: list.filter(p => p.is_verified).length,
-          featured: list.filter(p => p.is_featured).length,
-        };
-      }
+      const list = (profiles || []).map(p => ({
+        ...p,
+        status: p.status || (p.is_approved ? 'approved' : 'pending')
+      }));
+
+      const analyticsData = {
+        total: list.length,
+        approved: list.filter(p => p.is_approved || p.status === 'approved').length,
+        pending: list.filter(p => p.status === 'pending' || (!p.is_approved && p.status !== 'rejected' && p.status !== 'blocked')).length,
+        rejected: list.filter(p => p.status === 'rejected').length,
+        blocked: list.filter(p => p.is_blocked || p.status === 'blocked').length,
+        verified: list.filter(p => p.is_verified).length,
+        featured: list.filter(p => p.is_featured).length,
+      };
 
       setAnalytics(analyticsData);
     } catch (err) {
@@ -181,7 +179,7 @@ const People = () => {
     } finally {
       setAnalyticsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   /* ═══════ FETCH REPORTS ═══════ */
   const fetchReports = useCallback(async () => {

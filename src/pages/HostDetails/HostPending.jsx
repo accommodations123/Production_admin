@@ -16,14 +16,16 @@ function HostPending() {
                 const { data, error: supaErr } = await supabase
                     .from('profiles')
                     .select('*')
-                    .or('role.eq.host,role.eq.user')
-                    .eq('status', 'pending');
+                    .or('role.eq.host,role.eq.user');
 
                 if (supaErr) {
                     console.error("Fetch pending hosts error:", supaErr);
                     setError(supaErr.message);
                 } else {
-                    setHosts(data || []);
+                    const pendingList = (data || []).filter(p =>
+                        p.status === 'pending' || (!p.is_approved && p.status !== 'rejected' && p.status !== 'blocked')
+                    );
+                    setHosts(pendingList);
                 }
             } catch (err) {
                 setError(err.message);

@@ -224,7 +224,24 @@ const Events = () => {
         console.error("Fetch events error:", supaErr);
         setEvents([]);
       } else {
-        setEvents(data || []);
+        let eventList = data || [];
+        const hostIds = [...new Set(eventList.map(e => e.host_id || e.user_id).filter(Boolean))];
+        if (hostIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
+          const profileMap = {};
+          (profiles || []).forEach(p => { profileMap[p.id] = p; });
+          eventList = eventList.map(e => ({
+            ...e,
+            status: e.status || (e.is_approved ? 'approved' : 'pending'),
+            Host: profileMap[e.host_id || e.user_id] || e.Host || null,
+          }));
+        } else {
+          eventList = eventList.map(e => ({
+            ...e,
+            status: e.status || (e.is_approved ? 'approved' : 'pending'),
+          }));
+        }
+        setEvents(eventList);
       }
     } catch (err) {
       console.error("Failed to fetch events", err);

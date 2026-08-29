@@ -4,17 +4,19 @@ import HostPending from '../HostDetails/HostPending';
 import HostApproved from '../HostDetails/HostApproved';
 import HostRejected from '../HostDetails/HostRejected';
 
-
+import EventPending from '../HostDetails/Events/EventsPending';
 import EventApproved from '../HostDetails/Events/EventsApproved';
 import EventRejected from '../HostDetails/Events/EventsResjected';
 
-// Note: Ensure the path matches your actual folder structure
+// Property components
 import PropertyApproved from '../HostDetails/propeties/PropertiesApproved';
 import PropertyRejected from '../HostDetails/propeties/PropertiesRejected';
+import HostingApproval from '../HostingApproval';
 
 // --- IMPORT BUY SELL COMPONENTS ---
+import BuySellPending from '../HostDetails/buysell/BuysellPending';
 import BuySellApproved from '../HostDetails/buysell/BuysellApproved';
-import BuySellBlocked from '../HostDetails/buysell/BuysellRejected'; // Corrected import name
+import BuySellBlocked from '../HostDetails/buysell/BuysellRejected';
 
 function Hostdetailpages() {
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -22,14 +24,11 @@ function Hostdetailpages() {
 
     // --- HELPER TO GET TABS BASED ON CATEGORY ---
     const getAvailableTabs = (category) => {
-        if (category === 'hosts') {
+        if (category === 'hosts' || category === 'events' || category === 'property') {
             return ['pending', 'approved', 'rejected'];
         }
-        if (category === 'events' || category === 'property') {
-            return ['approved', 'rejected'];
-        }
         if (category === 'buysell') {
-            return ['approved', 'blocked'];
+            return ['pending', 'approved', 'blocked'];
         }
         return [];
     };
@@ -38,7 +37,7 @@ function Hostdetailpages() {
     const handleCategoryChange = (category) => {
         setSelectedCategory(category);
         const tabs = getAvailableTabs(category);
-        setActiveSubTab(tabs[0]);
+        setActiveSubTab(tabs[0] || 'pending');
     };
 
     const handleBack = () => {
@@ -182,6 +181,7 @@ function Hostdetailpages() {
                             {/* --- EVENTS HOST CONTENT --- */}
                             {selectedCategory === 'events' && (
                                 <>
+                                    {activeSubTab === 'pending' && <EventPending />}
                                     {activeSubTab === 'approved' && <EventApproved />}
                                     {activeSubTab === 'rejected' && <EventRejected />}
                                 </>
@@ -190,6 +190,7 @@ function Hostdetailpages() {
                             {/* --- PROPERTY HOST CONTENT --- */}
                             {selectedCategory === 'property' && (
                                 <>
+                                    {activeSubTab === 'pending' && <HostingApproval />}
                                     {activeSubTab === 'approved' && <PropertyApproved />}
                                     {activeSubTab === 'rejected' && <PropertyRejected />}
                                 </>
@@ -198,6 +199,7 @@ function Hostdetailpages() {
                             {/* --- BUY SELL HOST CONTENT --- */}
                             {selectedCategory === 'buysell' && (
                                 <>
+                                    {activeSubTab === 'pending' && <BuySellPending />}
                                     {activeSubTab === 'approved' && <BuySellApproved />}
                                     {activeSubTab === 'blocked' && <BuySellBlocked />}
                                 </>

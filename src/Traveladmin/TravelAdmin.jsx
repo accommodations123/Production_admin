@@ -104,8 +104,25 @@ export default function TravelAdmin() {
         setTrips([]);
         return [];
       }
-      setTrips(data || []);
-      return data || [];
+      let list = data || [];
+      const hostIds = [...new Set(list.map(t => t.host_id || t.user_id).filter(Boolean))];
+      if (hostIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
+        const profileMap = {};
+        (profiles || []).forEach(p => { profileMap[p.id] = p; });
+        list = list.map(t => ({
+          ...t,
+          status: t.status || (t.is_approved ? 'approved' : 'pending'),
+          host: profileMap[t.host_id || t.user_id] || t.host || null
+        }));
+      } else {
+        list = list.map(t => ({
+          ...t,
+          status: t.status || (t.is_approved ? 'approved' : 'pending')
+        }));
+      }
+      setTrips(list);
+      return list;
     } catch (err) {
       console.error("Error fetching trips:", err);
       return [];
@@ -119,7 +136,8 @@ export default function TravelAdmin() {
 
       setStats({
         totalTrips: tripsData.length,
-        approvedTrips: tripsData.filter(t => t.status === 'approved').length,
+        approvedTrips: tripsData.filter(t => t.status === 'approved' || t.is_approved).length,
+        pendingTrips: tripsData.filter(t => t.status === 'pending' || !t.status).length,
         completedTrips: tripsData.filter(t => t.status === 'completed').length,
       });
     } catch (err) {
@@ -132,6 +150,7 @@ export default function TravelAdmin() {
   const [stats, setStats] = useState({
     totalTrips: 0,
     approvedTrips: 0,
+    pendingTrips: 0,
     completedTrips: 0,
   });
 
