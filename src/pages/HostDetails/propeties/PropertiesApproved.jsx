@@ -38,7 +38,19 @@ const PropertyApproved = () => {
                     console.error("Error fetching approved properties:", supaErr);
                     setProperties([]);
                 } else {
-                    setProperties(data || []);
+                    let propList = data || [];
+                    const hostIds = [...new Set(propList.map(p => p.host_id).filter(Boolean))];
+                    if (hostIds.length > 0) {
+                        const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
+                        const profileMap = {};
+                        (profiles || []).forEach(pr => { profileMap[pr.id] = pr; });
+                        propList = propList.map(p => ({
+                            ...p,
+                            Host: profileMap[p.host_id] || p.Host || null,
+                            owner: profileMap[p.host_id] || p.owner || null,
+                        }));
+                    }
+                    setProperties(propList);
                 }
             } catch (err) {
                 console.error("Error fetching approved properties:", err);
@@ -439,14 +451,27 @@ const PropertyApproved = () => {
 
                             {/* Host Section */}
                             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
-                                <h3 className="text-lg font-bold mb-4">Host Information</h3>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-bold">Host Information</h3>
+                                    <span className="text-xs uppercase font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        {selectedProperty.Host?.role || selectedProperty.owner?.role || 'Host'}
+                                    </span>
+                                </div>
                                 <div className="flex items-center gap-4">
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-2xl font-bold shadow-lg">
-                                        {selectedProperty.Host?.full_name?.charAt(0) || 'H'}
+                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0">
+                                        {selectedProperty.Host?.full_name?.charAt(0)?.toUpperCase() || selectedProperty.owner?.full_name?.charAt(0)?.toUpperCase() || 'H'}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-xl font-bold">{selectedProperty.Host?.full_name || 'Unknown Host'}</p>
-                                        <p className="text-white/70">{selectedProperty.Host?.User?.email || 'No email provided'}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xl font-bold">{selectedProperty.Host?.full_name || selectedProperty.owner?.full_name || selectedProperty.host_name || 'Host'}</p>
+                                        <p className="text-white/70 truncate">{selectedProperty.Host?.email || selectedProperty.owner?.email || selectedProperty.email || 'No email provided'}</p>
+                                        <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-white/60">
+                                            {(selectedProperty.Host?.phone || selectedProperty.owner?.phone) && (
+                                                <span>Phone: {selectedProperty.Host?.phone || selectedProperty.owner?.phone}</span>
+                                            )}
+                                            {(selectedProperty.Host?.whatsapp || selectedProperty.owner?.whatsapp) && (
+                                                <span className="text-emerald-400">WA: {selectedProperty.Host?.whatsapp || selectedProperty.owner?.whatsapp}</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>

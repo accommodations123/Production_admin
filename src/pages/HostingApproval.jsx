@@ -279,9 +279,15 @@ const HostingApproval = () => {
       createdAt: raw?.createdAt ?? raw?.created_at ?? null,
       updatedAt: raw?.updatedAt ?? raw?.updated_at ?? null,
       owner: {
-        email: owner?.email ?? owner?.User?.email ?? null,
-        phone: owner?.verification?.phone ?? owner?.phone ?? null,
-        fullName: owner?.verification?.full_name ?? owner?.full_name ?? null,
+        id: owner?.id || raw?.host_id || null,
+        email: owner?.email ?? owner?.User?.email ?? raw?.email ?? null,
+        phone: owner?.phone ?? owner?.verification?.phone ?? raw?.phone ?? null,
+        whatsapp: owner?.whatsapp ?? null,
+        fullName: owner?.full_name ?? owner?.name ?? owner?.verification?.full_name ?? raw?.host_name ?? raw?.hostName ?? raw?.user_name ?? null,
+        avatar: owner?.avatar_url || owner?.profile_image || null,
+        city: owner?.city || null,
+        country: owner?.country || null,
+        role: owner?.role || 'host',
       },
       raw,
     };
@@ -298,7 +304,22 @@ const HostingApproval = () => {
 
         let allRawProperties = supaProps || [];
 
-        const normalized = allRawProperties.map(normalize);
+        // Enrich properties with their host profile from profiles table
+        const hostIds = [...new Set(allRawProperties.map(p => p.host_id).filter(Boolean))];
+        let profileMap = {};
+        if (hostIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
+          (profiles || []).forEach(p => {
+            profileMap[p.id] = p;
+          });
+        }
+
+        const enrichedProps = allRawProperties.map(p => ({
+          ...p,
+          owner: profileMap[p.host_id] || p.owner || null
+        }));
+
+        const normalized = enrichedProps.map(normalize);
 
         if (mounted) {
           setProperties(normalized);
@@ -1120,18 +1141,37 @@ const HostingApproval = () => {
                 <div className="lg:col-span-4 bg-white p-6 border-l border-slate-100">
                   {/* Owner Info */}
                   {viewProperty.owner && (
-                    <div className="bg-slate-50 rounded-2xl p-4 mb-6">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Owner Information</h4>
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg">
-                          {viewProperty.owner.fullName?.[0] || viewProperty.owner.email?.[0] || 'O'}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-900">{viewProperty.owner.fullName || 'Property Owner'}</p>
-                          <p className="text-sm text-slate-500 truncate">{viewProperty.owner.email}</p>
-                          {viewProperty.owner.phone && (
-                            <p className="text-sm text-slate-500">{viewProperty.owner.phone}</p>
+                    <div className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-100">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Owner Information</h4>
+                        <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {viewProperty.owner.role || 'Host'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3.5">
+                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-sm flex-shrink-0">
+                          {viewProperty.owner.avatar ? (
+                            <img src={viewProperty.owner.avatar} alt="Owner" className="h-full w-full object-cover rounded-full" />
+                          ) : (
+                            viewProperty.owner.fullName?.[0]?.toUpperCase() || viewProperty.owner.email?.[0]?.toUpperCase() || 'H'
                           )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 text-base">{viewProperty.owner.fullName || 'Property Owner'}</p>
+                          {viewProperty.owner.email && (
+                            <p className="text-xs text-slate-600 truncate mt-0.5">{viewProperty.owner.email}</p>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-1.5 text-xs text-slate-500">
+                            {viewProperty.owner.phone && (
+                              <span className="font-medium">{viewProperty.owner.phone}</span>
+                            )}
+                            {viewProperty.owner.whatsapp && viewProperty.owner.whatsapp !== viewProperty.owner.phone && (
+                              <span className="text-emerald-600 font-medium">WA: {viewProperty.owner.whatsapp}</span>
+                            )}
+                            {(viewProperty.owner.city || viewProperty.owner.country) && (
+                              <span>• {[viewProperty.owner.city, viewProperty.owner.country].filter(Boolean).join(', ')}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
