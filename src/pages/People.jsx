@@ -35,6 +35,7 @@ import {
   MessageCircle
 } from "lucide-react";
 import axios from "axios";
+import { supabase } from "../lib/supabase";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -185,26 +186,20 @@ const People = () => {
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
-      let reportsList = [];
-      try {
-        const res = await axios.get(`${BASE_URL}/admin/people/reports`, getHeaders());
-        const data = res.data?.reports || res.data?.data || res.data || [];
-        if (Array.isArray(data) && data.length > 0) reportsList = data;
-      } catch (e) {}
-
-      if (reportsList.length === 0 && supabase) {
-        const { data: supaReports } = await supabase.from('people_reports').select('*');
-        reportsList = supaReports || [];
+      const { data: supaReports, error: supaErr } = await supabase.from('people_reports').select('*');
+      if (supaErr) {
+        console.warn("Fetch reports notice:", supaErr.message);
+        setReports([]);
+      } else {
+        setReports(supaReports || []);
       }
-
-      setReports(Array.isArray(reportsList) ? reportsList : []);
     } catch (err) {
       console.error("Fetch reports error:", err);
-      showToast(err.response?.data?.message || "Failed to load reports", "error");
+      setReports([]);
     } finally {
       setReportsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   useEffect(() => {
     fetchProfiles();
@@ -224,8 +219,12 @@ const People = () => {
 
     try {
       setDetailsLoading(true);
-      const res = await axios.get(`${BASE_URL}/admin/people/${profileId}`, getHeaders());
-      setProfileDetails(res.data?.profile || res.data?.data || res.data);
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', profileId).single();
+      if (data) {
+        setProfileDetails(data);
+      } else {
+        setProfileDetails(profile);
+      }
     } catch (err) {
       console.error("Fetch profile details error:", err);
       setProfileDetails(profile);
