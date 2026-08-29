@@ -13,7 +13,6 @@ function HostApproved() {
                 const { data, error: supaErr } = await supabase
                     .from('profiles')
                     .select('*')
-                    .eq('role', 'host')
                     .or('status.eq.approved,is_approved.eq.true');
 
                 if (supaErr) {

@@ -15,8 +15,7 @@ function HostPending() {
                 setLoading(true);
                 const { data, error: supaErr } = await supabase
                     .from('profiles')
-                    .select('*')
-                    .eq('role', 'host');
+                    .select('*');
 
                 if (supaErr) {
                     console.error("Fetch pending hosts error:", supaErr);
@@ -44,7 +43,7 @@ function HostPending() {
         try {
             const { error: supaErr } = await supabase
                 .from('profiles')
-                .update({ status: 'approved', is_approved: true, is_verified: true })
+                .update({ status: 'approved', is_approved: true, is_verified: true, role: 'host' })
                 .eq('id', selectedHost.id);
 
             if (supaErr) {
