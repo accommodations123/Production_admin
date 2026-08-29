@@ -157,32 +157,62 @@ function EventPending() {
                                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Event Details</h4>
                                     <ul className="space-y-2 text-sm">
                                         <li><span className="text-slate-500 text-xs block">Title</span>{selectedEvent.title}</li>
-                                        <li><span className="text-slate-500 text-xs block">Type</span>{displayValue(selectedEvent.type)}</li>
+                                        <li><span className="text-slate-500 text-xs block">Category / Type</span>{displayValue(selectedEvent.category || selectedEvent.type)}</li>
                                         <li><span className="text-slate-500 text-xs block">Mode</span>{displayValue(selectedEvent.event_mode)}</li>
                                         <li><span className="text-slate-500 text-xs block">Price</span>{displayValue(selectedEvent.price)}</li>
+                                        <li><span className="text-slate-500 text-xs block">Capacity</span>{displayValue(selectedEvent.capacity)}</li>
                                     </ul>
                                 </div>
                                 <div className="space-y-3 bg-slate-50 p-4 rounded-xl">
                                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date & Time</h4>
                                     <ul className="space-y-2 text-sm">
-                                        <li><span className="text-slate-500 text-xs block">Start</span>{selectedEvent.start_date} {selectedEvent.start_time}</li>
-                                        <li><span className="text-slate-500 text-xs block">End</span>{displayValue(selectedEvent.end_date)} {displayValue(selectedEvent.end_time)}</li>
+                                        <li><span className="text-slate-500 text-xs block">Start</span>{selectedEvent.start_date ? new Date(selectedEvent.start_date).toLocaleDateString() : 'N/A'} {selectedEvent.time || selectedEvent.start_time || ''}</li>
+                                        <li><span className="text-slate-500 text-xs block">End</span>{selectedEvent.end_date ? new Date(selectedEvent.end_date).toLocaleDateString() : 'N/A'} {selectedEvent.end_time || ''}</li>
+                                        <li><span className="text-slate-500 text-xs block">Location / Venue</span>{displayValue(selectedEvent.venue_name || selectedEvent.location || selectedEvent.city)}</li>
                                     </ul>
                                 </div>
                             </div>
 
-                            {/* Host Info */}
-                            {selectedEvent.Host && (
-                                <div className="flex items-center space-x-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-                                    <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg">
-                                        {selectedEvent.Host?.full_name?.[0]?.toUpperCase() || 'H'}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-slate-900">{selectedEvent.Host?.full_name}</p>
-                                        <p className="text-xs text-slate-500">{selectedEvent.Host?.email} {selectedEvent.Host?.phone ? `• ${selectedEvent.Host.phone}` : ''}</p>
-                                    </div>
+                            {/* Location & Amenities */}
+                            {(selectedEvent.location || selectedEvent.city || selectedEvent.landmark || selectedEvent.parking_info || selectedEvent.accessibility_info) && (
+                                <div className="p-4 bg-slate-50 rounded-xl space-y-2 text-sm">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Location & Facilities</h4>
+                                    <p className="text-slate-700"><strong>Address/City:</strong> {[selectedEvent.landmark, selectedEvent.city, selectedEvent.state, selectedEvent.country, selectedEvent.zip_code].filter(Boolean).join(', ') || 'Not specified'}</p>
+                                    {selectedEvent.parking_info && <p className="text-slate-700">🅿️ <strong>Parking:</strong> {selectedEvent.parking_info}</p>}
+                                    {selectedEvent.accessibility_info && <p className="text-slate-700">♿ <strong>Accessibility:</strong> {selectedEvent.accessibility_info}</p>}
                                 </div>
                             )}
+
+                            {/* Inclusions & Exclusions */}
+                            {(selectedEvent.what_is_included || selectedEvent.what_is_not_included) && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {selectedEvent.what_is_included && (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                                            <p className="text-xs font-bold text-emerald-800 uppercase">What's Included</p>
+                                            <p className="text-xs text-emerald-900 mt-1 whitespace-pre-line">{selectedEvent.what_is_included}</p>
+                                        </div>
+                                    )}
+                                    {selectedEvent.what_is_not_included && (
+                                        <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl">
+                                            <p className="text-xs font-bold text-rose-800 uppercase">What's Not Included</p>
+                                            <p className="text-xs text-rose-900 mt-1 whitespace-pre-line">{selectedEvent.what_is_not_included}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Host / Organizer Info */}
+                            <div className="flex items-center space-x-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
+                                <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg">
+                                    {(selectedEvent.Host?.full_name || selectedEvent.organizer_name || 'E')?.[0]?.toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-slate-900">{selectedEvent.Host?.full_name || selectedEvent.organizer_name || "Event Organizer"}</p>
+                                    <p className="text-xs text-slate-500">
+                                        {[selectedEvent.Host?.email || selectedEvent.organizer_email, selectedEvent.Host?.phone || selectedEvent.phone].filter(Boolean).join(' • ')}
+                                    </p>
+                                </div>
+                            </div>
 
                             {/* Rejection input */}
                             {isRejecting && (

@@ -106,6 +106,51 @@ const getCurrencySymbol = (country) => {
   return currencyMap[countryLower] || '$'; // Default to USD if country not found
 };
 
+const parseListOrString = (val) => {
+  if (!val) return [];
+  if (Array.isArray(val)) return val.filter(Boolean);
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      } catch (e) {}
+    }
+    if (trimmed.includes('\n')) {
+      return trimmed.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+    if (trimmed.includes(',')) {
+      return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+const parseImages = (images, photos, gallery) => {
+  const result = [];
+  [images, photos, gallery].forEach(source => {
+    if (!source) return;
+    if (Array.isArray(source)) {
+      source.forEach(img => { if (typeof img === 'string' && img.trim()) result.push(img.trim()); });
+    } else if (typeof source === 'string') {
+      const trimmed = source.trim();
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(img => { if (typeof img === 'string' && img.trim()) result.push(img.trim()); });
+          }
+        } catch (e) {}
+      } else if (trimmed.startsWith('http')) {
+        result.push(trimmed);
+      }
+    }
+  });
+  return [...new Set(result)];
+};
+
 // --- COMPONENTS ---
 
 const Button = ({
@@ -833,270 +878,293 @@ const Events = () => {
 
               {/* Content Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-12">
+                {(() => {
+                  const galleryImgs = parseImages(viewEvent.images, viewEvent.photos, viewEvent.gallery_images);
+                  const includedItems = parseListOrString(viewEvent.what_is_included || viewEvent.included_items || viewEvent.inclusions);
+                  const notIncludedItems = parseListOrString(viewEvent.what_is_not_included || viewEvent.not_included_items || viewEvent.exclusions);
+                  const organizerName = viewEvent.Host?.full_name || viewEvent.organizer_name || viewEvent.host_name || "Event Organizer";
+                  const organizerEmail = viewEvent.Host?.User?.email || viewEvent.Host?.email || viewEvent.organizer_email || viewEvent.email;
+                  const organizerPhone = viewEvent.Host?.phone || viewEvent.phone || viewEvent.contact_phone;
+                  const eventAddress = viewEvent.address || viewEvent.street_address || viewEvent.location || viewEvent.venue_name || "Not specified";
+                  const startTime = viewEvent.time || viewEvent.start_time || "Not specified";
+                  const endTime = viewEvent.end_time || "Not specified";
+                  const eventCategory = viewEvent.category || viewEvent.type || "Event";
 
-                {/* Left: Images & Media */}
-                <div className="lg:col-span-7 bg-slate-50">
-                  <div className="relative h-64 lg:h-80 overflow-hidden">
-                    {getImageUrl(viewEvent.banner_image) && !imageError[`view-${viewEvent.id}`] ? (
-                      <img
-                        src={getImageUrl(viewEvent.banner_image)}
-                        className="h-full w-full object-cover"
-                        onError={() => setImageError(p => ({ ...p, [`view-${viewEvent.id}`]: true }))}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-slate-200">
-                        <PhotoIcon className="h-20 w-20 text-slate-400" />
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 pt-20">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <Badge status={viewEvent.status} mode={viewEvent.event_mode} />
-                        <span className="text-xs font-bold text-white uppercase tracking-wider bg-white/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/30">
-                          {viewEvent.type}
-                        </span>
-                      </div>
-                      <h2 className="text-3xl font-bold text-white">{viewEvent.title}</h2>
-                    </div>
-                  </div>
-
-                  {/* Gallery */}
-                  <div className="p-8">
-                    <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">Gallery</h4>
-                    {Array.isArray(viewEvent.gallery_images) && viewEvent.gallery_images.length > 0 ? (
-                      <div className="grid grid-cols-4 gap-4">
-                        {viewEvent.gallery_images.map((img, i) => (
-                          <img
-                            key={i}
-                            src={getImageUrl(img)}
-                            className="h-28 w-full rounded-xl object-cover shadow-sm border border-slate-200"
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-400 italic">No images available</p>
-                    )}
-                  </div>
-
-                  {/* Schedule */}
-                  {Array.isArray(viewEvent.schedule) && viewEvent.schedule.length > 0 && (
-                    <div className="px-8 pb-8">
-                      <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">Event Schedule</h4>
-                      <ScheduleTimeline schedule={viewEvent.schedule} />
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: All Details */}
-                <div className="lg:col-span-5 bg-white p-8 border-l border-slate-100 h-[800px] overflow-y-auto custom-scrollbar">
-
-                  {/* Header / Host / Price */}
-                  <div className="space-y-6 mb-8">
-                    {viewEvent.Host && (
-                      <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
-                          {viewEvent.Host.full_name?.[0]}
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-500 uppercase">Hosted by</p>
-                          <p className="text-sm font-bold text-slate-900">{viewEvent.Host.full_name}</p>
-                          <p className="text-xs text-slate-500 truncate w-32">{viewEvent.Host.User?.email}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-3xl font-bold text-slate-900">{getCurrencySymbol(viewEvent.country)}{viewEvent.price}</span>
-                      <div className="text-right">
-                        <p className="text-xs text-slate-500 uppercase font-semibold">Attendance</p>
-                        <p className="text-sm font-bold text-indigo-600">{viewEvent.attendees_count || 0} People</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6 mb-8">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 mb-2">Description</h4>
-                      <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">
-                        {viewEvent.description || "No description provided."}
-                      </p>
-                    </div>
-
-                    {/* Event Information Section */}
-                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Event Information</h4>
-                      <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Start Date</p>
-                          <p className="text-sm font-semibold text-slate-900">{moment(viewEvent.start_date).format('MMMM DD, YYYY')}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">End Date</p>
-                          <p className="text-sm font-semibold text-slate-900">{viewEvent.end_date ? moment(viewEvent.end_date).format('MMMM DD, YYYY') : 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Start Time</p>
-                          <p className="text-sm font-semibold text-slate-900">{viewEvent.start_time || 'Not specified'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">End Time</p>
-                          <p className="text-sm font-semibold text-slate-900">{viewEvent.end_time || 'Not specified'}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Event URL</p>
-                          {viewEvent.event_url ? (
-                            <a href={viewEvent.event_url} target="_blank" rel="noreferrer" className="flex items-center text-sm font-semibold text-indigo-600 hover:underline break-all">
-                              <LinkIcon className="h-4 w-4 mr-1" /> {viewEvent.event_url}
-                            </a>
+                  return (
+                    <>
+                      {/* Left: Images & Media */}
+                      <div className="lg:col-span-7 bg-slate-50">
+                        <div className="relative h-64 lg:h-80 overflow-hidden">
+                          {getImageUrl(viewEvent.banner_image) && !imageError[`view-${viewEvent.id}`] ? (
+                            <img
+                              src={getImageUrl(viewEvent.banner_image)}
+                              className="h-full w-full object-cover"
+                              onError={() => setImageError(p => ({ ...p, [`view-${viewEvent.id}`]: true }))}
+                              alt="Banner"
+                            />
                           ) : (
-                            <p className="text-sm text-slate-400">Not specified</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Location Information Section */}
-                    {(viewEvent.event_mode === 'offline' || viewEvent.event_mode === 'hybrid') && (
-                      <div className="bg-indigo-50/30 rounded-2xl p-5 border border-indigo-100">
-                        <div className="flex items-center justify-between mb-3 border-b border-indigo-100 pb-2">
-                          <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Location Information</h4>
-                          {viewEvent.google_maps_url && (
-                            <a href={viewEvent.google_maps_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-indigo-600 hover:underline flex items-center">
-                              <MapPinSolid className="h-3 w-3 mr-1" /> Map
-                            </a>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-y-3 gap-x-6 mb-4">
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Venue</p>
-                            <p className="text-sm font-bold text-indigo-900">{viewEvent.venue_name || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">City</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.city || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">State</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.state || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Country</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.country || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Zip Code</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.zip_code || 'Not specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Landmark</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.landmark || 'Not specified'}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Address</p>
-                            <p className="text-sm font-medium text-slate-700">{viewEvent.street_address || 'Not specified'}</p>
-                          </div>
-                        </div>
-
-                        {/* Venue Description */}
-                        {viewEvent.venue_description && (
-                          <div className="mb-3 bg-white p-3 rounded-xl border border-indigo-50">
-                            <p className="text-xs italic text-slate-600">{viewEvent.venue_description}</p>
-                          </div>
-                        )}
-
-                        <div className="flex gap-3 text-xs">
-                          {viewEvent.parking_info && (
-                            <span className="bg-white px-2 py-1 rounded border border-slate-200 text-slate-600">
-                              🅿️ {viewEvent.parking_info}
-                            </span>
-                          )}
-                          {viewEvent.accessibility_info && (
-                            <span className="bg-white px-2 py-1 rounded border border-slate-200 text-slate-600">
-                              ♿ {viewEvent.accessibility_info}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Online Information Section */}
-                    {(viewEvent.event_mode === 'online' || viewEvent.event_mode === 'hybrid') && (
-                      <div className="bg-purple-50/30 rounded-2xl p-5 border border-purple-100">
-                        <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider mb-3 border-b border-purple-100 pb-2">Virtual Meeting</h4>
-                        {viewEvent.event_url ? (
-                          <a href={viewEvent.event_url} target="_blank" rel="noreferrer" className="block w-full text-center bg-white border border-purple-200 shadow-sm rounded-xl px-3 py-2.5 text-xs font-bold text-purple-700 hover:bg-purple-50 transition-colors mb-2">
-                            Join Meeting Room
-                          </a>
-                        ) : (
-                          <p className="text-xs text-purple-400 mb-2 italic text-center">Link not provided</p>
-                        )}
-                        {viewEvent.online_instructions && (
-                          <div className="flex gap-2">
-                            <InformationCircleIcon className="h-4 w-4 text-purple-500 mt-0.5" />
-                            <p className="text-xs text-purple-800">{viewEvent.online_instructions}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Inclusions Section */}
-                  <div className="flex flex-col gap-4 mb-8 border-t border-slate-100 pt-6">
-                    <div className="flex-1">
-                      <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">What's Included</h4>
-                      {Array.isArray(viewEvent.included_items) && viewEvent.included_items.length > 0 ? (
-                        <div className="space-y-1">
-                          {viewEvent.included_items.map((item, i) => (
-                            <div key={i} className="flex items-center text-xs text-slate-700">
-                              <CheckBadgeIcon className="h-3 w-3 mr-2 text-emerald-500" /> {item}
+                            <div className="flex h-full w-full items-center justify-center bg-slate-200">
+                              <PhotoIcon className="h-20 w-20 text-slate-400" />
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">Not specified</p>
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2">What's Not Included</h4>
-                      {Array.isArray(viewEvent.not_included_items) && viewEvent.not_included_items.length > 0 ? (
-                        <div className="space-y-1">
-                          {viewEvent.not_included_items.map((item, i) => (
-                            <div key={i} className="flex items-center text-xs text-slate-700">
-                              <XMarkIcon className="h-3 w-3 mr-2 text-rose-500" /> {item}
+                          )}
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 pt-20">
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <Badge status={viewEvent.status} mode={viewEvent.event_mode} />
+                              <span className="text-xs font-bold text-white uppercase tracking-wider bg-white/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/30">
+                                {eventCategory}
+                              </span>
                             </div>
-                          ))}
+                            <h2 className="text-3xl font-bold text-white">{viewEvent.title}</h2>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">Not specified</p>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Rejection Reason */}
-                  {viewEvent.status === 'rejected' && viewEvent.rejection_reason && (
-                    <div className="rounded-2xl bg-red-50 p-4 mb-6 border border-red-100">
-                      <h4 className="text-sm font-bold text-red-800 mb-1">Rejection Reason</h4>
-                      <p className="text-sm text-red-700">{viewEvent.rejection_reason}</p>
-                    </div>
-                  )}
+                        {/* Gallery */}
+                        <div className="p-8">
+                          <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">Gallery</h4>
+                          {galleryImgs.length > 0 ? (
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                              {galleryImgs.map((img, i) => (
+                                <img
+                                  key={i}
+                                  src={getImageUrl(img)}
+                                  className="h-28 w-full rounded-xl object-cover shadow-sm border border-slate-200"
+                                  alt={`Gallery ${i + 1}`}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-400 italic">No images available</p>
+                          )}
+                        </div>
 
-                  {/* Actions */}
-                  <div className="space-y-3 border-t border-slate-100 pt-6">
-                    {viewEvent.status === "pending" && (
-                      <>
-                        <Button className="w-full" size="lg" icon={CheckCircleIcon} onClick={() => { handleApprove(viewEvent.id); setViewModalOpen(false); }}>
-                          Approve Event
-                        </Button>
-                        <Button variant="dangerGhost" className="w-full" size="lg" icon={XCircleIcon} onClick={() => { handleRejectClick(viewEvent.id); setViewModalOpen(false); }}>
-                          Reject Event
-                        </Button>
-                      </>
-                    )}
-                    <Button variant="secondary" className="w-full" size="lg" onClick={() => setViewModalOpen(false)}>
-                      Close
-                    </Button>
-                  </div>
-                </div>
+                        {/* Schedule */}
+                        {Array.isArray(viewEvent.schedule) && viewEvent.schedule.length > 0 && (
+                          <div className="px-8 pb-8">
+                            <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide mb-4">Event Schedule</h4>
+                            <ScheduleTimeline schedule={viewEvent.schedule} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: All Details */}
+                      <div className="lg:col-span-5 bg-white p-8 border-l border-slate-100 h-[800px] overflow-y-auto custom-scrollbar">
+
+                        {/* Header / Host / Price */}
+                        <div className="space-y-6 mb-8">
+                          <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center font-bold text-lg shadow-md">
+                              {organizerName?.[0]?.toUpperCase() || 'E'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-500 uppercase">Organized by</p>
+                              <p className="text-sm font-bold text-slate-900 truncate">{organizerName}</p>
+                              <div className="flex flex-col text-xs text-slate-500 truncate">
+                                {organizerEmail && <span>{organizerEmail}</span>}
+                                {organizerPhone && <span>{organizerPhone}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-3xl font-bold text-slate-900">{getCurrencySymbol(viewEvent.country)}{viewEvent.price}</span>
+                            <div className="text-right">
+                              <p className="text-xs text-slate-500 uppercase font-semibold">Attendance</p>
+                              <p className="text-sm font-bold text-indigo-600">{viewEvent.capacity || viewEvent.attendees_count || 0} Capacity</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6 mb-8">
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900 mb-2">Description</h4>
+                            <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              {viewEvent.description || "No description provided."}
+                            </p>
+                          </div>
+
+                          {/* Event Information Section */}
+                          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Event Information</h4>
+                            <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                              <div>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Start Date</p>
+                                <p className="text-sm font-semibold text-slate-900">{moment(viewEvent.start_date).format('MMMM DD, YYYY')}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">End Date</p>
+                                <p className="text-sm font-semibold text-slate-900">{viewEvent.end_date ? moment(viewEvent.end_date).format('MMMM DD, YYYY') : 'Not specified'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Start Time</p>
+                                <p className="text-sm font-semibold text-slate-900">{startTime}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">End Time</p>
+                                <p className="text-sm font-semibold text-slate-900">{endTime}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Category</p>
+                                <p className="text-sm font-semibold text-indigo-600 capitalize">{eventCategory}</p>
+                              </div>
+                              {viewEvent.event_url && (
+                                <div className="col-span-2">
+                                  <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Event URL</p>
+                                  <a href={viewEvent.event_url} target="_blank" rel="noreferrer" className="flex items-center text-sm font-semibold text-indigo-600 hover:underline break-all">
+                                    <LinkIcon className="h-4 w-4 mr-1" /> {viewEvent.event_url}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Location Information Section */}
+                          {(viewEvent.event_mode === 'offline' || viewEvent.event_mode === 'hybrid' || !viewEvent.event_mode) && (
+                            <div className="bg-indigo-50/30 rounded-2xl p-5 border border-indigo-100">
+                              <div className="flex items-center justify-between mb-3 border-b border-indigo-100 pb-2">
+                                <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Location Information</h4>
+                                {viewEvent.google_maps_url && (
+                                  <a href={viewEvent.google_maps_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-indigo-600 hover:underline flex items-center">
+                                    <MapPinSolid className="h-3 w-3 mr-1" /> Map
+                                  </a>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-y-3 gap-x-6 mb-4">
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Venue</p>
+                                  <p className="text-sm font-bold text-indigo-900">{viewEvent.venue_name || viewEvent.location || 'Not specified'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">City</p>
+                                  <p className="text-sm font-medium text-slate-700">{viewEvent.city || 'Not specified'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">State</p>
+                                  <p className="text-sm font-medium text-slate-700">{viewEvent.state || 'Not specified'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Country</p>
+                                  <p className="text-sm font-medium text-slate-700">{viewEvent.country || 'Not specified'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Zip Code</p>
+                                  <p className="text-sm font-medium text-slate-700">{viewEvent.zip_code || 'Not specified'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Landmark</p>
+                                  <p className="text-sm font-medium text-slate-700">{viewEvent.landmark || 'Not specified'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Address</p>
+                                  <p className="text-sm font-medium text-slate-700">{eventAddress}</p>
+                                </div>
+                              </div>
+
+                              {/* Venue Description */}
+                              {viewEvent.venue_description && (
+                                <div className="mb-3 bg-white p-3 rounded-xl border border-indigo-50">
+                                  <p className="text-xs italic text-slate-600">{viewEvent.venue_description}</p>
+                                </div>
+                              )}
+
+                              <div className="flex flex-col gap-2 text-xs">
+                                {viewEvent.parking_info && (
+                                  <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700">
+                                    🅿️ <strong>Parking:</strong> {viewEvent.parking_info}
+                                  </span>
+                                )}
+                                {viewEvent.accessibility_info && (
+                                  <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700">
+                                    ♿ <strong>Accessibility:</strong> {viewEvent.accessibility_info}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Online Information Section */}
+                          {(viewEvent.event_mode === 'online' || viewEvent.event_mode === 'hybrid') && (
+                            <div className="bg-purple-50/30 rounded-2xl p-5 border border-purple-100">
+                              <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider mb-3 border-b border-purple-100 pb-2">Virtual Meeting</h4>
+                              {viewEvent.event_url ? (
+                                <a href={viewEvent.event_url} target="_blank" rel="noreferrer" className="block w-full text-center bg-white border border-purple-200 shadow-sm rounded-xl px-3 py-2.5 text-xs font-bold text-purple-700 hover:bg-purple-50 transition-colors mb-2">
+                                  Join Meeting Room
+                                </a>
+                              ) : (
+                                <p className="text-xs text-purple-400 mb-2 italic text-center">Link not provided</p>
+                              )}
+                              {viewEvent.online_instructions && (
+                                <div className="flex gap-2">
+                                  <InformationCircleIcon className="h-4 w-4 text-purple-500 mt-0.5" />
+                                  <p className="text-xs text-purple-800">{viewEvent.online_instructions}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Inclusions Section */}
+                        <div className="flex flex-col gap-4 mb-8 border-t border-slate-100 pt-6">
+                          <div className="flex-1 bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/60">
+                            <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">What's Included</h4>
+                            {includedItems.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {includedItems.map((item, i) => (
+                                  <div key={i} className="flex items-start text-xs text-slate-700 font-medium">
+                                    <CheckBadgeIcon className="h-4 w-4 mr-2 text-emerald-600 shrink-0 mt-0.5" />
+                                    <span>{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400 italic">Not specified</p>
+                            )}
+                          </div>
+
+                          <div className="flex-1 bg-rose-50/40 p-4 rounded-xl border border-rose-100/60">
+                            <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider mb-2">What's Not Included</h4>
+                            {notIncludedItems.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {notIncludedItems.map((item, i) => (
+                                  <div key={i} className="flex items-start text-xs text-slate-700 font-medium">
+                                    <XMarkIcon className="h-4 w-4 mr-2 text-rose-600 shrink-0 mt-0.5" />
+                                    <span>{item}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400 italic">Not specified</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rejection Reason */}
+                        {viewEvent.status === 'rejected' && viewEvent.rejection_reason && (
+                          <div className="rounded-2xl bg-red-50 p-4 mb-6 border border-red-100">
+                            <h4 className="text-sm font-bold text-red-800 mb-1">Rejection Reason</h4>
+                            <p className="text-sm text-red-700">{viewEvent.rejection_reason}</p>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="space-y-3 border-t border-slate-100 pt-6">
+                          {viewEvent.status === "pending" && (
+                            <>
+                              <Button className="w-full" size="lg" icon={CheckCircleIcon} onClick={() => { handleApprove(viewEvent.id); setViewModalOpen(false); }}>
+                                Approve Event
+                              </Button>
+                              <Button variant="dangerGhost" className="w-full" size="lg" icon={XCircleIcon} onClick={() => { handleRejectClick(viewEvent.id); setViewModalOpen(false); }}>
+                                Reject Event
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="secondary" className="w-full" size="lg" onClick={() => setViewModalOpen(false)}>
+                            Close
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
