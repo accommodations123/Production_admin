@@ -79,22 +79,7 @@ const isPeopleProfile = (p) => {
   if (!p) return false;
   // Never show admin accounts in People directory
   if (p.role === "super_admin" || p.role === "admin") return false;
-
-  // Explicit community / people directory roles
-  if (p.role === "people" || p.role === "member" || p.role === "traveler") return true;
-
-  // Check for submitted People directory information
-  const hasProfession = Boolean(p.profession && typeof p.profession === "string" && p.profession.trim());
-  const hasHeadline = Boolean(p.headline && typeof p.headline === "string" && p.headline.trim());
-  const hasValidOccupation = Boolean(
-    p.occupation &&
-    typeof p.occupation === "string" &&
-    !p.occupation.trim().startsWith("{") &&
-    p.occupation.trim().length > 0
-  );
-  const hasIdProof = Boolean(p.id_proof_type || p.id_photo || p.selfie_photo);
-
-  return hasProfession || hasHeadline || hasValidOccupation || hasIdProof;
+  return true;
 };
 
 const People = () => {
@@ -429,7 +414,7 @@ const People = () => {
 
   /* ═══════ FILTERING PROFILES ═══════ */
   const filteredProfiles = profiles.filter((p) => {
-    const name = `${p.firstName || ""} ${p.lastName || ""} ${p.name || ""}`.toLowerCase();
+    const name = `${p.full_name || ""} ${p.name || ""} ${p.firstName || ""} ${p.lastName || ""}`.toLowerCase();
     const email = (p.email || "").toLowerCase();
     const city = (p.city || p.location?.city || "").toLowerCase();
     const occupation = (p.occupation || p.headline || p.profession || "").toLowerCase();
@@ -603,14 +588,14 @@ const People = () => {
                   <tbody className="divide-y divide-slate-100">
                     {!loading && filteredProfiles.map((p) => {
                       const id = p._id || p.id;
-                      const name = p.name || `${p.firstName || ""} ${p.lastName || ""}`.trim() || "Anonymous User";
+                      const name = p.full_name || p.name || `${p.firstName || ""} ${p.lastName || ""}`.trim() || "Anonymous User";
                       const isBlocked = Boolean(p.is_blocked || p.isBlocked || p.blocked || p.status === "blocked");
                       const isApproved = Boolean(p.is_approved || p.status === "approved");
                       const isRejected = p.status === "rejected";
                       const isPending = p.status === "pending" || (!p.status && !isApproved);
                       const isVerified = Boolean(p.is_verified || p.isVerified || p.verified);
                       const isFeatured = Boolean(p.is_featured || p.isFeatured || p.featured);
-                      const avatar = p.avatar || p.profileImage || p.photoUrl || p.image;
+                      const avatar = p.profile_image || p.avatar_url || p.avatar || p.profileImage || p.photoUrl || p.image;
 
                       return (
                         <tr key={id} className="hover:bg-slate-50/70 transition-colors">
