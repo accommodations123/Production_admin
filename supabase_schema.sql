@@ -40,6 +40,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id_proof TEXT,
     document_url TEXT,
     metadata JSONB,
+    hourly_rate NUMERIC,
+    consultation_rate NUMERIC,
+    currency TEXT DEFAULT '₹',
+    education TEXT,
+    degree TEXT,
+    institution TEXT,
+    university TEXT,
+    graduation_year TEXT,
+    years_of_experience NUMERIC,
+    rating NUMERIC DEFAULT 0,
+    review_count INTEGER DEFAULT 0,
     rejection_reason TEXT,
     block_reason TEXT,
     last_login_at TIMESTAMPTZ,
@@ -47,23 +58,35 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- MIGRATION: Run this if your profiles table already exists:
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS whatsapp TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS street_address TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS address TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS city TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS state TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS zip_code TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS about TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS website TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS facebook TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS instagram TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS linkedin TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS id_proof TEXT;
--- ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS metadata JSONB;
+-- MIGRATIONS for PROFILES:
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS consultation_rate NUMERIC;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT '₹';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS education TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS degree TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS institution TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS university TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS graduation_year TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS years_of_experience NUMERIC;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS review_count INTEGER DEFAULT 0;
+
+-- 1b. PROFILE REVIEWS TABLE (Reviews for People / Professional Directory)
+CREATE TABLE IF NOT EXISTS public.profile_reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    reviewer_id UUID,
+    reviewer_name TEXT,
+    reviewer_avatar TEXT,
+    rating NUMERIC NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    status TEXT DEFAULT 'approved',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_profile_reviews_profile_id ON public.profile_reviews(profile_id);
+CREATE INDEX IF NOT EXISTS idx_profile_reviews_status ON public.profile_reviews(status);
 
 -- 2. PROPERTIES TABLE (Accommodations)
 CREATE TABLE IF NOT EXISTS public.properties (

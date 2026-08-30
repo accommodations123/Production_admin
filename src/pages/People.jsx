@@ -692,13 +692,32 @@ const People = () => {
                             </div>
                           </td>
 
-                          <td className="px-5 py-4 max-w-[220px]">
-                            <div className="text-xs text-slate-700 truncate font-medium">
+                          <td className="px-5 py-4 max-w-[260px]">
+                            <div className="text-xs text-slate-800 truncate font-semibold">
                               {p.occupation || p.headline || p.profession || "Not specified"}
                             </div>
-                            <p className="text-xs text-slate-400 truncate line-clamp-1">
-                              {p.bio || p.about || "No bio added"}
-                            </p>
+                            {/* Consultation Rate */}
+                            <div className="text-xs text-indigo-700 font-medium mt-0.5">
+                              {(p.hourly_rate !== null && p.hourly_rate !== undefined) || (p.consultation_rate !== null && p.consultation_rate !== undefined) ? (
+                                <span>{p.currency || "₹"}{Number(p.hourly_rate ?? p.consultation_rate).toLocaleString()} / hr</span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">Rate not provided</span>
+                              )}
+                            </div>
+                            {/* Education */}
+                            {(p.education || p.degree || p.institution || p.university) ? (
+                              <div className="text-[11px] text-slate-500 truncate mt-0.5" title={`${p.degree || p.education || ''} ${p.institution || p.university || ''}`}>
+                                🎓 {[p.degree || p.education, p.institution || p.university].filter(Boolean).join(" • ")}
+                              </div>
+                            ) : null}
+                            {/* Reviews / Rating */}
+                            <div className="text-[11px] text-amber-600 font-medium mt-0.5">
+                              {p.rating && Number(p.rating) > 0 ? (
+                                <span>★ {Number(p.rating).toFixed(1)} ({p.review_count || 0} reviews)</span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">No reviews yet</span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Moderation Status */}
@@ -1137,6 +1156,41 @@ const People = () => {
                                 </span>
                               </div>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Professional, Education & Pricing Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Consultation Rate */}
+                          <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-1.5">
+                            <h4 className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Consultation Rate</h4>
+                            {(p.hourly_rate !== null && p.hourly_rate !== undefined) || (p.consultation_rate !== null && p.consultation_rate !== undefined) ? (
+                              <p className="text-lg font-extrabold text-indigo-950">
+                                {p.currency || "₹"}{Number(p.hourly_rate ?? p.consultation_rate).toLocaleString()} <span className="text-xs font-medium text-indigo-600">/ hour</span>
+                              </p>
+                            ) : (
+                              <p className="text-xs font-medium text-slate-400">Rate not provided</p>
+                            )}
+                            {p.years_of_experience && (
+                              <p className="text-xs text-indigo-600 font-medium">Experience: {p.years_of_experience} yrs</p>
+                            )}
+                          </div>
+
+                          {/* Education */}
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-1.5 md:col-span-2">
+                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Education & Credentials</h4>
+                            {(p.education || p.degree || p.institution || p.university) ? (
+                              <div className="space-y-1">
+                                <p className="text-sm font-bold text-slate-900">
+                                  {p.degree || p.education || "Degree / Coursework"}
+                                </p>
+                                <p className="text-xs text-slate-600 font-medium">
+                                  {[p.institution || p.university, p.graduation_year].filter(Boolean).join(" • ")}
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs font-medium text-slate-400">Education details not provided</p>
+                            )}
                           </div>
                         </div>
 
