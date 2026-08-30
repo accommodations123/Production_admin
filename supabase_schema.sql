@@ -250,17 +250,47 @@ CREATE TABLE IF NOT EXISTS public.travel_trips (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     host_id TEXT,
     host_name TEXT,
+    host_email TEXT,
+    host_phone TEXT,
     title TEXT,
     origin TEXT,
     destination TEXT,
+    from_city TEXT,
+    from_country TEXT,
+    to_city TEXT,
+    to_country TEXT,
+    airline TEXT,
+    flight_number TEXT,
     travel_date TIMESTAMPTZ,
     departure_time TEXT,
+    arrival_date TIMESTAMPTZ,
+    arrival_time TEXT,
     seats_available INTEGER DEFAULT 1,
     price NUMERIC DEFAULT 0,
+    currency TEXT DEFAULT '$',
+    notes TEXT,
+    description TEXT,
+    is_approved BOOLEAN DEFAULT false,
     status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'completed', 'cancelled', 'rejected'
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure columns exist in case table was created earlier
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS host_email TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS host_phone TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS from_city TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS from_country TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS to_city TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS to_country TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS airline TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS flight_number TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS arrival_date TIMESTAMPTZ;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS arrival_time TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT '$';
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.travel_trips ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT false;
 
 -- 10. MODERATION REPORTS
 CREATE TABLE IF NOT EXISTS public.people_reports (

@@ -166,7 +166,12 @@ export default function TravelAdmin() {
     setLoading(true);
     try {
       if (tripId && newStatus) {
-        const { error: supaErr } = await supabase.from('travel_trips').update({ status: newStatus }).eq('id', tripId);
+        const updatePayload = {
+          status: newStatus,
+          is_approved: newStatus === 'approved',
+          updated_at: new Date().toISOString()
+        };
+        const { error: supaErr } = await supabase.from('travel_trips').update(updatePayload).eq('id', tripId);
         if (supaErr) {
           console.error("Travel trip update error:", supaErr);
           setSnackbar({ open: true, message: supaErr.message || 'Action failed', severity: 'error' });
