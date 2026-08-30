@@ -86,22 +86,22 @@ export default function TripDetailsModal({ open, onClose, trip }) {
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <FlightTakeoff sx={{ fontSize: 16, color: '#888', mr: 1 }} />
                     <Typography variant="body2" color="text.secondary">
-                      From
+                      From (Origin)
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.from_city}, {trip.from_country}
+                    {trip.origin || [trip.from_city, trip.from_country].filter(Boolean).join(', ') || 'Origin not specified'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <FlightLand sx={{ fontSize: 16, color: '#888', mr: 1 }} />
                     <Typography variant="body2" color="text.secondary">
-                      To
+                      To (Destination)
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.to_city}, {trip.to_country}
+                    {trip.destination || [trip.to_city, trip.to_country].filter(Boolean).join(', ') || 'Destination not specified'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -112,7 +112,7 @@ export default function TripDetailsModal({ open, onClose, trip }) {
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {formatUTCDate(trip.travel_date, trip.departure_time)}
+                    {trip.travel_date ? formatUTCDate(trip.travel_date, trip.departure_time) : (trip.date || "Date not specified")}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -123,7 +123,7 @@ export default function TripDetailsModal({ open, onClose, trip }) {
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {formatUTCTime(trip.travel_date, trip.departure_time)}
+                    {trip.departure_time ? formatUTCTime(trip.travel_date, trip.departure_time) : (trip.time || "Time not specified")}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -134,18 +134,18 @@ export default function TripDetailsModal({ open, onClose, trip }) {
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.arrival_date ? `${formatUTCDate(trip.arrival_date, trip.arrival_time)} | ${formatUTCTime(trip.arrival_date, trip.arrival_time)}` : "N/A"}
+                    {trip.arrival_date ? `${formatUTCDate(trip.arrival_date, trip.arrival_time)} | ${formatUTCTime(trip.arrival_date, trip.arrival_time)}` : "Not specified"}
                   </Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid item xs={12} sm={6}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <AirlineSeatReclineNormal sx={{ fontSize: 16, color: '#888', mr: 1 }} />
                     <Typography variant="body2" color="text.secondary">
-                      Airline
+                      Airline & Flight
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.airline} ({trip.flight_number})
+                    {[trip.airline, trip.flight_number ? `(${trip.flight_number})` : null].filter(Boolean).join(' ') || trip.title || 'Flight details not specified'}
                   </Typography>
                 </Grid>
               </Grid>
@@ -166,14 +166,14 @@ export default function TripDetailsModal({ open, onClose, trip }) {
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Avatar sx={{ mr: 2, width: 48, height: 48, bgcolor: '#1976d2' }}>
-                  {trip.host?.full_name?.charAt(0) || 'U'}
+                  {trip.host?.full_name?.charAt(0) || trip.host?.name?.charAt(0) || 'U'}
                 </Avatar>
                 <Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.host?.full_name}
+                    {trip.host?.full_name || trip.host?.name || "Traveler"}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {trip.host?.User?.email}
+                    {trip.host?.email || trip.host?.User?.email || "No email available"}
                   </Typography>
                 </Box>
               </Box>
@@ -197,7 +197,7 @@ export default function TripDetailsModal({ open, onClose, trip }) {
                     </Typography>
                   </Box>
                   <Typography variant="body1" fontWeight={500}>
-                    {trip.host?.User?.verified ? (
+                    {Boolean(trip.host?.is_verified || trip.host?.verified || trip.host?.User?.verified || trip.host?.is_approved) ? (
                       <Chip label="Yes" color="success" size="small" icon={<CheckCircle sx={{ fontSize: 14 }} />} />
                     ) : (
                       <Chip label="No" color="default" size="small" icon={<ErrorOutline sx={{ fontSize: 14 }} />} />
