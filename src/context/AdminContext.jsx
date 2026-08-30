@@ -10,6 +10,8 @@ export function AdminProvider({ children }) {
     const [admin, setAdmin] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const VALID_ADMIN_ROLES = ["super_admin", "admin", "recruiter"];
+
     const checkAuth = async () => {
         try {
             // 1. Check active Supabase session
@@ -23,22 +25,33 @@ export function AdminProvider({ children }) {
                             .eq("email", session.user.email)
                             .maybeSingle();
 
-                        const role = profile?.role || session.user.user_metadata?.role || localStorage.getItem("admin-role") || "super_admin";
-                        const adminData = profile || {
-                            id: session.user.id,
-                            email: session.user.email,
-                            name: session.user.user_metadata?.name || "Admin",
-                            role,
-                        };
+                        const role = profile?.role;
+                        if (role && VALID_ADMIN_ROLES.includes(role)) {
+                            const adminData = {
+                                ...profile,
+                                id: profile.id || session.user.id,
+                                email: profile.email || session.user.email,
+                                name: profile.full_name || profile.name || session.user.user_metadata?.name || "Admin",
+                                role,
+                            };
 
-                        setAdmin(adminData);
-                        localStorage.setItem("admin-role", role);
-                        localStorage.setItem("admin-logged-in", "true");
-                        if (session.access_token) {
-                            localStorage.setItem("admin-auth", session.access_token);
+                            setAdmin(adminData);
+                            localStorage.setItem("admin-role", role);
+                            localStorage.setItem("admin-logged-in", "true");
+                            if (session.access_token) {
+                                localStorage.setItem("admin-auth", session.access_token);
+                            }
+                            setLoading(false);
+                            return;
+                        } else {
+                            // User is authenticated but does not possess an admin role in database
+                            setAdmin(null);
+                            localStorage.removeItem("admin-role");
+                            localStorage.removeItem("admin-logged-in");
+                            localStorage.removeItem("admin-auth");
+                            setLoading(false);
+                            return;
                         }
-                        setLoading(false);
-                        return;
                     }
                 } catch (supaErr) {
                     console.warn("Supabase session check skipped:", supaErr);

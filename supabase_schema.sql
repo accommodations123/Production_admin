@@ -286,8 +286,257 @@ CREATE TABLE IF NOT EXISTS public.stay_request_reports (
 );
 
 -- ==============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- Enable read & write for authenticated admins and public reads where appropriate
+-- POSTGRESQL SECURITY HELPER FUNCTIONS (SECURITY DEFINER)
+-- ==============================================================================
+
+-- 1. Helper to determine if the active session is an Admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_role TEXT;
+    v_blocked BOOLEAN;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT role, is_blocked INTO v_role, v_blocked
+    FROM public.profiles
+    WHERE id = auth.uid();
+
+    RETURN (v_role IN ('super_admin', 'admin') AND (v_blocked IS NOT TRUE));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- 2. Helper to determine if the active session is a Recruiter or Admin
+CREATE OR REPLACE FUNCTION public.is_recruiter()
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_role TEXT;
+    v_blocked BOOLEAN;
+BEGIN
+    IF auth.uid() IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    SELECT role, is_blocked INTO v_role, v_blocked
+    FROM public.profiles
+    WHERE id = auth.uid();
+
+    RETURN (v_role IN ('super_admin', 'admin', 'recruiter') AND (v_blocked IS NOT TRUE));
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- ==============================================================================
+-- ADMIN MODERATION RPC FUNCTIONS (MANDATORY ADMIN-ONLY EXECUTION)
+-- ==============================================================================
+
+-- Approve Host Application
+CREATE OR REPLACE FUNCTION public.admin_approve_host(host_id UUID)
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.profiles
+    SET status = 'approved',
+        is_approved = true,
+        is_verified = true,
+        role = 'host',
+        updated_at = NOW()
+    WHERE id = host_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Host approved successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Reject Host Application
+CREATE OR REPLACE FUNCTION public.admin_reject_host(host_id UUID, reason TEXT DEFAULT 'KYC details do not meet guidelines')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.profiles
+    SET status = 'rejected',
+        is_approved = false,
+        rejection_reason = reason,
+        updated_at = NOW()
+    WHERE id = host_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Host rejected successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Block Profile
+CREATE OR REPLACE FUNCTION public.admin_block_profile(target_id UUID, reason TEXT DEFAULT 'Blocked by administrator')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.profiles
+    SET status = 'blocked',
+        is_blocked = true,
+        block_reason = reason,
+        updated_at = NOW()
+    WHERE id = target_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Profile blocked successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Approve Property
+CREATE OR REPLACE FUNCTION public.admin_approve_property(prop_id UUID)
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.properties
+    SET status = 'approved',
+        is_approved = true,
+        updated_at = NOW()
+    WHERE id = prop_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Property approved successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Reject Property
+CREATE OR REPLACE FUNCTION public.admin_reject_property(prop_id UUID, reason TEXT DEFAULT 'Listing details incomplete or non-compliant')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.properties
+    SET status = 'rejected',
+        is_approved = false,
+        rejection_reason = reason,
+        updated_at = NOW()
+    WHERE id = prop_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Property rejected successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Approve Event
+CREATE OR REPLACE FUNCTION public.admin_approve_event(event_id UUID)
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.events
+    SET status = 'approved',
+        is_approved = true,
+        updated_at = NOW()
+    WHERE id = event_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Event approved successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Reject Event
+CREATE OR REPLACE FUNCTION public.admin_reject_event(event_id UUID, reason TEXT DEFAULT 'Event rejected by administrator')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.events
+    SET status = 'rejected',
+        is_approved = false,
+        rejection_reason = reason,
+        updated_at = NOW()
+    WHERE id = event_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Event rejected successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Approve Buy & Sell Listing
+CREATE OR REPLACE FUNCTION public.admin_approve_buysell(item_id UUID)
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.buy_sell
+    SET status = 'approved',
+        updated_at = NOW()
+    WHERE id = item_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Listing approved successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Reject Buy & Sell Listing
+CREATE OR REPLACE FUNCTION public.admin_reject_buysell(item_id UUID, reason TEXT DEFAULT 'Listing non-compliant')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.buy_sell
+    SET status = 'rejected',
+        rejection_reason = reason,
+        updated_at = NOW()
+    WHERE id = item_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Listing rejected successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Approve Stay Request
+CREATE OR REPLACE FUNCTION public.admin_approve_stay_request(request_id UUID)
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.stay_requests
+    SET status = 'approved',
+        is_approved = true,
+        updated_at = NOW()
+    WHERE id = request_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Stay request approved successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Reject Stay Request
+CREATE OR REPLACE FUNCTION public.admin_reject_stay_request(request_id UUID, reason TEXT DEFAULT 'Request does not meet quality guidelines')
+RETURNS JSONB AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'Access denied: Administrator privileges required.';
+    END IF;
+
+    UPDATE public.stay_requests
+    SET status = 'rejected',
+        is_approved = false,
+        rejection_reason = reason,
+        updated_at = NOW()
+    WHERE id = request_id;
+
+    RETURN jsonb_build_object('success', true, 'message', 'Stay request rejected successfully');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES — HARDENED PRODUCTION SECURITY
 -- ==============================================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -302,23 +551,179 @@ ALTER TABLE public.travel_trips ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.people_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stay_request_reports ENABLE ROW LEVEL SECURITY;
 
--- Allow full access for anon/authenticated roles for all tables
-CREATE POLICY "Allow all access to profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to properties" ON public.properties FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to events" ON public.events FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to event_reviews" ON public.event_reviews FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to jobs" ON public.jobs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to job_applications" ON public.job_applications FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to buy_sell" ON public.buy_sell FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to stay_requests" ON public.stay_requests FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to travel_trips" ON public.travel_trips FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to people_reports" ON public.people_reports FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all access to stay_request_reports" ON public.stay_request_reports FOR ALL USING (true) WITH CHECK (true);
+-- 1. PROFILES POLICIES
+DROP POLICY IF EXISTS "Allow all access to profiles" ON public.profiles;
+
+CREATE POLICY "Public read active profiles" ON public.profiles
+    FOR SELECT USING (is_blocked IS NOT TRUE OR auth.uid() = id OR public.is_admin());
+
+CREATE POLICY "User insert own initial profile" ON public.profiles
+    FOR INSERT WITH CHECK (
+        (auth.uid() = id OR auth.uid() IS NULL)
+        AND (role = 'user' OR role IS NULL)
+        AND (status = 'pending' OR status IS NULL)
+        AND (is_approved IS NOT TRUE)
+        AND (is_verified IS NOT TRUE)
+        AND (is_blocked IS NOT TRUE)
+    );
+
+CREATE POLICY "User update own profile non-moderation fields" ON public.profiles
+    FOR UPDATE USING (auth.uid() = id OR public.is_admin())
+    WITH CHECK (
+        public.is_admin() OR (
+            auth.uid() = id
+            AND role = (SELECT role FROM public.profiles WHERE id = auth.uid())
+            AND is_approved = (SELECT is_approved FROM public.profiles WHERE id = auth.uid())
+            AND is_verified = (SELECT is_verified FROM public.profiles WHERE id = auth.uid())
+            AND is_blocked = (SELECT is_blocked FROM public.profiles WHERE id = auth.uid())
+        )
+    );
+
+CREATE POLICY "Admin full manage profiles" ON public.profiles
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 2. PROPERTIES POLICIES
+DROP POLICY IF EXISTS "Allow all access to properties" ON public.properties;
+
+CREATE POLICY "Public read approved properties" ON public.properties
+    FOR SELECT USING (
+        (status = 'approved' AND is_approved = true)
+        OR (auth.uid() = host_id)
+        OR public.is_admin()
+    );
+
+CREATE POLICY "Host insert pending property" ON public.properties
+    FOR INSERT WITH CHECK (
+        (auth.uid() = host_id OR public.is_admin())
+        AND (status IN ('draft', 'pending'))
+        AND (is_approved IS NOT TRUE OR public.is_admin())
+    );
+
+CREATE POLICY "Host update own property" ON public.properties
+    FOR UPDATE USING (auth.uid() = host_id OR public.is_admin())
+    WITH CHECK (
+        public.is_admin() OR (
+            auth.uid() = host_id
+            AND (status IN ('draft', 'pending'))
+            AND is_approved = (SELECT is_approved FROM public.properties WHERE id = properties.id)
+        )
+    );
+
+CREATE POLICY "Admin manage properties" ON public.properties
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 3. EVENTS POLICIES
+DROP POLICY IF EXISTS "Allow all access to events" ON public.events;
+
+CREATE POLICY "Public read approved events" ON public.events
+    FOR SELECT USING (
+        (status = 'approved' AND is_approved = true)
+        OR public.is_admin()
+    );
+
+CREATE POLICY "User insert pending event" ON public.events
+    FOR INSERT WITH CHECK (
+        status IN ('draft', 'pending')
+        AND (is_approved IS NOT TRUE OR public.is_admin())
+    );
+
+CREATE POLICY "Admin manage events" ON public.events
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 4. BUY & SELL POLICIES
+DROP POLICY IF EXISTS "Allow all access to buy_sell" ON public.buy_sell;
+
+CREATE POLICY "Public read approved marketplace" ON public.buy_sell
+    FOR SELECT USING (
+        status IN ('approved', 'active', 'sold')
+        OR (user_id = auth.uid()::text)
+        OR public.is_admin()
+    );
+
+CREATE POLICY "User insert pending listing" ON public.buy_sell
+    FOR INSERT WITH CHECK (
+        status IN ('draft', 'pending')
+        OR public.is_admin()
+    );
+
+CREATE POLICY "Admin manage marketplace" ON public.buy_sell
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 5. TRAVEL TRIPS POLICIES
+DROP POLICY IF EXISTS "Allow all access to travel_trips" ON public.travel_trips;
+
+CREATE POLICY "Public read approved travel trips" ON public.travel_trips
+    FOR SELECT USING (
+        status IN ('approved', 'completed')
+        OR (host_id = auth.uid()::text)
+        OR public.is_admin()
+    );
+
+CREATE POLICY "User insert pending travel trip" ON public.travel_trips
+    FOR INSERT WITH CHECK (
+        status IN ('pending', 'draft')
+        OR public.is_admin()
+    );
+
+CREATE POLICY "Admin manage travel trips" ON public.travel_trips
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 6. STAY REQUESTS POLICIES
+DROP POLICY IF EXISTS "Allow all access to stay_requests" ON public.stay_requests;
+
+CREATE POLICY "Public read approved stay requests" ON public.stay_requests
+    FOR SELECT USING (
+        (status = 'approved' AND is_approved = true)
+        OR (user_id = auth.uid()::text)
+        OR public.is_admin()
+    );
+
+CREATE POLICY "User insert pending stay request" ON public.stay_requests
+    FOR INSERT WITH CHECK (
+        status = 'pending'
+        AND (is_approved IS NOT TRUE OR public.is_admin())
+    );
+
+CREATE POLICY "Admin manage stay requests" ON public.stay_requests
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- 7. JOBS & APPLICATIONS POLICIES
+DROP POLICY IF EXISTS "Allow all access to jobs" ON public.jobs;
+DROP POLICY IF EXISTS "Allow all access to job_applications" ON public.job_applications;
+
+CREATE POLICY "Public read active jobs" ON public.jobs
+    FOR SELECT USING (status = 'Active' OR public.is_recruiter());
+
+CREATE POLICY "Recruiter manage jobs" ON public.jobs
+    FOR ALL USING (public.is_recruiter()) WITH CHECK (public.is_recruiter());
+
+CREATE POLICY "Candidate apply job" ON public.job_applications
+    FOR INSERT WITH CHECK (status = 'Pending');
+
+CREATE POLICY "Recruiter manage job applications" ON public.job_applications
+    FOR ALL USING (public.is_recruiter()) WITH CHECK (public.is_recruiter());
+
+-- 8. MODERATION REPORTS POLICIES
+DROP POLICY IF EXISTS "Allow all access to people_reports" ON public.people_reports;
+DROP POLICY IF EXISTS "Allow all access to stay_request_reports" ON public.stay_request_reports;
+
+CREATE POLICY "User insert people report" ON public.people_reports
+    FOR INSERT WITH CHECK (resolved IS NOT TRUE AND status = 'pending');
+
+CREATE POLICY "Admin manage people reports" ON public.people_reports
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+CREATE POLICY "User insert stay request report" ON public.stay_request_reports
+    FOR INSERT WITH CHECK (resolved IS NOT TRUE AND status = 'pending');
+
+CREATE POLICY "Admin manage stay request reports" ON public.stay_request_reports
+    FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 -- ==============================================================================
 -- SEED INITIAL SUPER ADMIN PROFILE (Link to your current login email)
 -- ==============================================================================
-INSERT INTO public.profiles (email, name, full_name, role, status, is_approved)
-VALUES ('admin@nextkinlife.com', 'Super Admin', 'Super Admin', 'super_admin', 'approved', true)
+INSERT INTO public.profiles (email, name, full_name, role, status, is_approved, is_verified)
+VALUES ('admin@nextkinlife.com', 'Super Admin', 'Super Admin', 'super_admin', 'approved', true, true)
 ON CONFLICT (email) DO UPDATE 
-SET role = 'super_admin', status = 'approved', is_approved = true;
+SET role = 'super_admin', status = 'approved', is_approved = true, is_verified = true;
+
