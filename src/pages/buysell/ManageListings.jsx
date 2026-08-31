@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Eye, CheckCircle, Ban, X, AlertCircle, Check, TrendingUp, Package, Users, Calendar, MapPin, Phone, Mail, Clock, Home, Tag, DollarSign } from "lucide-react";
+import { Eye, CheckCircle, Ban, X, AlertCircle, Check, TrendingUp, Package, Users, Calendar, MapPin, Phone, Mail, Clock, Home, Tag, DollarSign, Image as ImageIcon } from "lucide-react";
 import axios from "axios";
 import { utcToLocal } from "../../utils/timezone";
 import { supabase } from "../../lib/supabase";
+import { parseImages, getPrimaryImage } from "../../utils/imageUtils";
 
 /* ==============================
    API CONFIG
@@ -62,18 +63,27 @@ const ViewDetailsModal = ({ listing, onClose }) => {
                 </div>
 
                 {/* IMAGES */}
-                {listing.images?.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
-                        {listing.images.map((img, i) => (
-                            <img
-                                key={i}
-                                src={img}
-                                alt=""
-                                className="h-40 w-full object-cover rounded-lg border"
-                            />
-                        ))}
-                    </div>
-                )}
+                {(() => {
+                    const modalImages = parseImages(listing.images, listing.photos, listing.image, listing.image_url, listing.media);
+                    if (modalImages.length === 0) return null;
+                    return (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                            {modalImages.map((img, i) => (
+                                <div key={i} className="h-40 w-full rounded-lg border overflow-hidden bg-gray-100 flex items-center justify-center">
+                                    <img
+                                        src={img}
+                                        alt={`Listing image ${i + 1}`}
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => {
+                                            e.currentTarget.onerror = null;
+                                            e.currentTarget.style.display = "none";
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })()}
 
                 {/* LISTING INFO */}
                 <div className="bg-gray-50 p-5 rounded-lg mb-6">
@@ -301,26 +311,28 @@ const ManageListings = () => {
     const enrichWithProfiles = async (rawList) => {
         let list = rawList || [];
         const userIds = [...new Set(list.map(l => l.user_id).filter(Boolean))];
+        let profileMap = {};
         if (userIds.length > 0) {
             const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds);
-            const profileMap = {};
             (profiles || []).forEach(p => { profileMap[p.id] = p; });
-            list = list.map(l => {
-                const prof = profileMap[l.user_id] || {};
-                return {
-                    ...l,
-                    name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
-                    email: l.email || l.seller_email || prof.email || null,
-                    phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
-                    whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
-                    sellerEmail: l.seller_email || l.email || prof.email || null,
-                    sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
-                    sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
-                    User: { email: prof.email, fullName: prof.full_name, ...l.User }
-                };
-            });
         }
-        return list;
+
+        return list.map(l => {
+            const prof = profileMap[l.user_id] || {};
+            const parsed = parseImages(l.images, l.photos, l.image, l.image_url, l.media, l.picture, l.thumbnail);
+            return {
+                ...l,
+                images: parsed,
+                name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
+                email: l.email || l.seller_email || prof.email || null,
+                phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
+                whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
+                sellerEmail: l.seller_email || l.email || prof.email || null,
+                sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
+                sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
+                User: { email: prof.email, fullName: prof.full_name, ...l.User }
+            };
+        });
     };
 
     useEffect(() => {
@@ -526,13 +538,32 @@ const ManageListings = () => {
                                 {data.map((l) => (
                                     <tr key={l.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-4">
-                                            <div className="w-16 h-16 rounded-lg overflow-hidden shadow-sm">
-                                                <img
-                                                    src={l.images?.[0] || "/placeholder.png"}
-                                                    className="w-full h-full object-cover"
-                                                    alt=""
-                                                />
-                                            </div>
+                                            {(() => {
+                                                const primaryImg = (l.images && l.images[0]) || getPrimaryImage(l);
+                                                return (
+                                                    <div className="w-16 h-16 rounded-lg overflow-hidden shadow-sm bg-gray-100 flex items-center justify-center border border-gray-200">
+                                                        {primaryImg ? (
+                                                            <img
+                                                                src={primaryImg}
+                                                                className="w-full h-full object-cover"
+                                                                alt={l.title || "Listing image"}
+                                                                onError={(e) => {
+                                                                    e.currentTarget.onerror = null;
+                                                                    e.currentTarget.style.display = "none";
+                                                                    if (e.currentTarget.parentElement) {
+                                                                        e.currentTarget.parentElement.innerHTML = '<span class="text-[10px] text-gray-400 font-medium text-center px-1">No Image</span>';
+                                                                    }
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center text-gray-400 p-1">
+                                                                <Package className="w-5 h-5 text-gray-400" />
+                                                                <span className="text-[9px] text-gray-400 font-medium">No Image</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="p-4">
                                             <div className="font-medium text-gray-900">{l.title}</div>

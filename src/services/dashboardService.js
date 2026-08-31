@@ -51,19 +51,35 @@ api.interceptors.response.use(
 /* ======================================================
    HELPER: Safe API / Supabase Fallback Runner
 ====================================================== */
+const isSupabaseFunctionsBase = API_URL.includes("supabase.co/functions") || API_URL.includes("supabase.co");
+
 async function runWithSupabaseFallback(apiCall, supabaseFallback) {
+    // If API_URL points to Supabase functions or direct database is available, run direct Supabase query
+    if (isSupabaseFunctionsBase && supabaseFallback) {
+        try {
+            return await supabaseFallback();
+        } catch (err) {
+            console.warn("Direct Supabase query error:", err);
+            return null;
+        }
+    }
+
     try {
         const res = await apiCall();
         if (res) return res;
     } catch {
         // Fallback directly to Supabase table query
     }
-    try {
-        return await supabaseFallback();
-    } catch (err) {
-        console.warn("Supabase fallback note:", err);
-        return null;
+
+    if (supabaseFallback) {
+        try {
+            return await supabaseFallback();
+        } catch (err) {
+            console.warn("Supabase fallback note:", err);
+            return null;
+        }
     }
+    return null;
 }
 
 /* ======================================================
@@ -236,10 +252,10 @@ export const dashboardAPI = {
         runWithSupabaseFallback(
             () => api.get("/buysellanalytics/country").then((r) => r.data),
             async () => {
-                const { data } = await supabase.from("buy_sell").select("country, location");
+                const { data } = await supabase.from("buy_sell").select("country, city");
                 const counts = {};
                 (data || []).forEach((i) => {
-                    const loc = i.country || i.location || "Unknown";
+                    const loc = i.country || i.city || "Unknown";
                     counts[loc] = (counts[loc] || 0) + 1;
                 });
                 return Object.keys(counts).map((country) => ({ country, count: counts[country] }));

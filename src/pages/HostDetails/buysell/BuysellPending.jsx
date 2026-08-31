@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { parseImages, getPrimaryImage } from '../../../utils/imageUtils';
 
 const BuySellPending = () => {
     const [listings, setListings] = useState([]);
@@ -23,25 +24,28 @@ const BuySellPending = () => {
             } else {
                 let list = (data || []).filter(item => item.status !== 'approved' && item.status !== 'active' && item.status !== 'rejected' && item.status !== 'blocked');
                 const userIds = [...new Set(list.map(l => l.user_id).filter(Boolean))];
+                let profileMap = {};
                 if (userIds.length > 0) {
                     const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds);
-                    const profileMap = {};
                     (profiles || []).forEach(p => { profileMap[p.id] = p; });
-                    list = list.map(l => {
-                        const prof = profileMap[l.user_id] || {};
-                        return {
-                            ...l,
-                            name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
-                            email: l.email || l.seller_email || prof.email || null,
-                            phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
-                            whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
-                            sellerEmail: l.seller_email || l.email || prof.email || null,
-                            sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
-                            sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
-                            sellerProfile: { email: prof.email, full_name: prof.full_name, phone: prof.phone, ...prof }
-                        };
-                    });
                 }
+
+                list = list.map(l => {
+                    const prof = profileMap[l.user_id] || {};
+                    const parsed = parseImages(l.images, l.photos, l.image, l.image_url, l.media, l.picture, l.thumbnail);
+                    return {
+                        ...l,
+                        images: parsed,
+                        name: l.name || l.seller_name || prof.full_name || prof.name || 'Anonymous',
+                        email: l.email || l.seller_email || prof.email || null,
+                        phone: l.phone || l.seller_phone || prof.phone || prof.mobile || null,
+                        whatsapp: l.whatsapp || l.seller_whatsapp || prof.whatsapp || null,
+                        sellerEmail: l.seller_email || l.email || prof.email || null,
+                        sellerPhone: l.seller_phone || l.phone || prof.phone || prof.mobile || null,
+                        sellerWhatsapp: l.seller_whatsapp || l.whatsapp || prof.whatsapp || null,
+                        sellerProfile: { email: prof.email, full_name: prof.full_name, phone: prof.phone, ...prof }
+                    };
+                });
                 setListings(list);
             }
         } catch (err) {
@@ -111,11 +115,22 @@ const BuySellPending = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {listings.map((item) => (
                     <div key={item.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
-                        <div className="h-48 w-full bg-gray-200 relative overflow-hidden">
+                        <div className="h-48 w-full bg-gray-200 relative overflow-hidden flex items-center justify-center">
                             {item.images?.[0] ? (
-                                <img src={item.images[0]} alt={item.title} className="w-full h-full object-cover" />
+                                <img
+                                    src={item.images[0]}
+                                    alt={item.title}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.style.display = "none";
+                                        if (e.currentTarget.parentElement) {
+                                            e.currentTarget.parentElement.innerHTML = '<div class="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 font-medium text-xs">No Image Available</div>';
+                                        }
+                                    }}
+                                />
                             ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">No Image</div>
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 font-medium text-xs">No Image Available</div>
                             )}
                             <span className="absolute top-2 right-2 px-2 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded uppercase">
                                 Pending
@@ -159,9 +174,21 @@ const BuySellPending = () => {
                             <button onClick={() => setSelectedItem(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                         </div>
                         <div className="p-6 space-y-6">
-                            {selectedItem.images?.[0] && (
-                                <div className="rounded-xl overflow-hidden shadow-sm h-64 bg-gray-100">
-                                    <img src={selectedItem.images[0]} alt={selectedItem.title} className="w-full h-full object-cover" />
+                            {selectedItem.images?.length > 0 && (
+                                <div className="grid grid-cols-2 gap-3">
+                                    {selectedItem.images.map((img, idx) => (
+                                        <div key={idx} className="rounded-xl overflow-hidden shadow-sm h-48 bg-gray-100 flex items-center justify-center">
+                                            <img
+                                                src={img}
+                                                alt={`${selectedItem.title} ${idx + 1}`}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null;
+                                                    e.currentTarget.style.display = "none";
+                                                }}
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
                             )}
 

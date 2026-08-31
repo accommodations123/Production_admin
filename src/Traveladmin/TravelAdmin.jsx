@@ -166,9 +166,9 @@ export default function TravelAdmin() {
     setLoading(true);
     try {
       if (tripId && newStatus) {
+        // Update status cleanly. We use status as standard column.
         const updatePayload = {
           status: newStatus,
-          is_approved: newStatus === 'approved',
           updated_at: new Date().toISOString()
         };
         const { error: supaErr } = await supabase.from('travel_trips').update(updatePayload).eq('id', tripId);

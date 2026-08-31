@@ -52,6 +52,17 @@ const initialFormData = {
 
     start_date: "",
 
+    skills: {
+        primary: [],
+        secondary: [],
+        nice_to_have: []
+    },
+
+    requirements: [],
+    responsibilities: [],
+    preferred_skills: [],
+    benefits: [],
+
     description: "",
     recruiter_name: "",
     recruiter_email: "",
@@ -177,7 +188,26 @@ const JobsTab = () => {
                 list = supaJobs || [];
             }
 
-            setJobsData(list);
+            const normalizedList = (list || []).map(j => {
+                let parsedSkills = j.skills;
+                if (typeof parsedSkills === 'string') {
+                    try {
+                        parsedSkills = JSON.parse(parsedSkills);
+                    } catch {
+                        parsedSkills = {};
+                    }
+                }
+                return {
+                    ...j,
+                    skills: {
+                        primary: Array.isArray(parsedSkills?.primary) ? parsedSkills.primary : (Array.isArray(j.primary_skills) ? j.primary_skills : []),
+                        secondary: Array.isArray(parsedSkills?.secondary) ? parsedSkills.secondary : [],
+                        nice_to_have: Array.isArray(parsedSkills?.nice_to_have) ? parsedSkills.nice_to_have : []
+                    }
+                };
+            });
+
+            setJobsData(normalizedList);
         } catch (err) {
             console.error("FETCH JOBS ERROR", err);
         }
@@ -1076,12 +1106,12 @@ const JobsTab = () => {
                                     <SkillTagInput
                                         label="Primary Skills"
                                         required={true}
-                                        tags={formData.skills.primary}
+                                        tags={formData.skills?.primary || []}
                                         placeholder="Type a core skill (e.g. Java) and press Enter or Comma"
                                         onChange={(newTags) =>
                                             setFormData({
                                                 ...formData,
-                                                skills: { ...formData.skills, primary: newTags }
+                                                skills: { ...(formData.skills || {}), primary: newTags }
                                             })
                                         }
                                     />
@@ -1089,12 +1119,12 @@ const JobsTab = () => {
                                     <SkillTagInput
                                         label="Secondary Skills"
                                         required={false}
-                                        tags={formData.skills.secondary}
+                                        tags={formData.skills?.secondary || []}
                                         placeholder="Type an additional skill (e.g. Spring Boot) and press Enter or Comma"
                                         onChange={(newTags) =>
                                             setFormData({
                                                 ...formData,
-                                                skills: { ...formData.skills, secondary: newTags }
+                                                skills: { ...(formData.skills || {}), secondary: newTags }
                                             })
                                         }
                                     />
@@ -1102,12 +1132,12 @@ const JobsTab = () => {
                                     <SkillTagInput
                                         label="Nice to Have Skills"
                                         required={false}
-                                        tags={formData.skills.nice_to_have}
+                                        tags={formData.skills?.nice_to_have || []}
                                         placeholder="Type bonus skills (e.g. Kubernetes) and press Enter or Comma"
                                         onChange={(newTags) =>
                                             setFormData({
                                                 ...formData,
-                                                skills: { ...formData.skills, nice_to_have: newTags }
+                                                skills: { ...(formData.skills || {}), nice_to_have: newTags }
                                             })
                                         }
                                     />
@@ -1115,7 +1145,7 @@ const JobsTab = () => {
                                     <SkillTagInput
                                         label="Preferred Skills"
                                         required={false}
-                                        tags={formData.preferred_skills}
+                                        tags={formData.preferred_skills || []}
                                         placeholder="Type preferred qualifications (e.g. AWS Certification) and press Enter or Comma"
                                         onChange={(newTags) =>
                                             setFormData({
