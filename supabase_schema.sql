@@ -190,6 +190,28 @@ CREATE TABLE IF NOT EXISTS public.jobs (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migrations for JOBS:
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS company TEXT DEFAULT 'NextKinLife LLC';
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS client_name TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS vendor_name TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS employment_type TEXT DEFAULT 'Full-time';
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS position_type TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS contract_duration TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS work_style TEXT DEFAULT 'Remote';
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS pay_type TEXT DEFAULT 'hourly';
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS pay_min NUMERIC;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS pay_max NUMERIC;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS salary_range TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS visa_status TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS start_date TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS preferred_skills JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS recruiter_name TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS recruiter_email TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS recruiter_phone TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS recruiter_linkedin TEXT;
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS company_linkedin TEXT;
+
 -- 6. JOB APPLICATIONS TABLE
 CREATE TABLE IF NOT EXISTS public.job_applications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

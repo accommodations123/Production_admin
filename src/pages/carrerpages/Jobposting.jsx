@@ -48,7 +48,7 @@ const initialFormData = {
     salary_range: "",
 
     experience_level: "",
-    visa_status: "both",
+    visa_status: [],
 
     start_date: "",
 
@@ -172,15 +172,19 @@ const JobsTab = () => {
     const fetchJobs = async () => {
         try {
             let list = [];
-            try {
-                const res = await api.get("/career/admin/jobs");
-                if (res.data?.success && res.data?.jobs) {
-                    list = res.data.jobs;
-                } else if (Array.isArray(res.data)) {
-                    list = res.data;
+            const isSupabaseFunctionsBase = BASE_URL.includes("supabase.co");
+
+            if (!isSupabaseFunctionsBase) {
+                try {
+                    const res = await api.get("/career/admin/jobs");
+                    if (res.data?.success && res.data?.jobs) {
+                        list = res.data.jobs;
+                    } else if (Array.isArray(res.data)) {
+                        list = res.data;
+                    }
+                } catch (apiErr) {
+                    console.warn("API career jobs fetch note:", apiErr.message);
                 }
-            } catch (apiErr) {
-                console.warn("API career jobs fetch, using Supabase:", apiErr.message);
             }
 
             if (list.length === 0 && supabase) {
@@ -237,32 +241,36 @@ const JobsTab = () => {
             };
 
             const payload = {
-                title: formData.title,
-                company: formData.company,
-                location: formData.location,
-                state: formData.state,
+                title: formData.title || "Untitled Position",
+                company: formData.company || "NextKinLife LLC",
+                location: formData.location || "",
+                state: formData.state || "",
 
-                client_name: formData.client_name,
-                vendor_name: formData.vendor_name,
+                client_name: formData.client_name || "",
+                vendor_name: formData.vendor_name || "",
 
-                employment_type: formData.employment_type,
-                position_type: formData.employment_type,
-                contract_duration: formData.contract_duration,
+                employment_type: formData.employment_type || "Full-time",
+                position_type: formData.employment_type || "Full-time",
+                job_type: formData.employment_type || "Full-time",
+                contract_duration: formData.contract_duration || "",
 
-                work_style: formData.work_style,
+                work_style: formData.work_style || "Remote",
+                workplace_type: formData.work_style || "Remote",
 
-                pay_type: formData.pay_type,
-                pay_min: formData.pay_min ? Number(formData.pay_min) : undefined,
-                pay_max: formData.pay_max ? Number(formData.pay_max) : undefined,
-                salary_range: formData.salary_range,
+                pay_type: formData.pay_type || "hourly",
+                pay_min: formData.pay_min ? Number(formData.pay_min) : null,
+                pay_max: formData.pay_max ? Number(formData.pay_max) : null,
+                salary_min: formData.pay_min ? Number(formData.pay_min) : null,
+                salary_max: formData.pay_max ? Number(formData.pay_max) : null,
+                salary_range: formData.salary_range || "",
 
-                experience_level: formData.experience_level,
+                experience_level: formData.experience_level || "",
 
-                visa_status: formData.visa_status,
+                visa_status: Array.isArray(formData.visa_status) ? formData.visa_status.join(", ") : (formData.visa_status || ""),
 
-                start_date: formData.start_date,
+                start_date: formData.start_date || "",
 
-                description: formData.description,
+                description: formData.description || "",
 
                 requirements: filterEmpty(formData.requirements),
                 responsibilities: filterEmpty(formData.responsibilities),
@@ -270,16 +278,16 @@ const JobsTab = () => {
                 benefits: filterEmpty(formData.benefits),
 
                 skills: {
-                    primary: filterEmpty(formData.skills.primary),
-                    secondary: filterEmpty(formData.skills.secondary),
-                    nice_to_have: filterEmpty(formData.skills.nice_to_have),
+                    primary: filterEmpty(formData.skills?.primary),
+                    secondary: filterEmpty(formData.skills?.secondary),
+                    nice_to_have: filterEmpty(formData.skills?.nice_to_have),
                 },
 
-                recruiter_name: formData.recruiter_name,
-                recruiter_email: formData.recruiter_email,
-                recruiter_phone: formData.recruiter_phone,
-                recruiter_linkedin: formData.recruiter_linkedin,
-                company_linkedin: formData.company_linkedin,
+                recruiter_name: formData.recruiter_name || "",
+                recruiter_email: formData.recruiter_email || "",
+                recruiter_phone: formData.recruiter_phone || "",
+                recruiter_linkedin: formData.recruiter_linkedin || "",
+                company_linkedin: formData.company_linkedin || "",
             };
 
             let job = null;
@@ -290,14 +298,62 @@ const JobsTab = () => {
                     .eq('id', editingJobId)
                     .select()
                     .single();
-                job = updated || { id: editingJobId, ...payload };
+                if (supaErr) {
+                    console.warn("Supabase update error:", supaErr);
+                    // Fallback to core columns if custom columns not present
+                    const fallbackPayload = {
+                        title: payload.title,
+                        location: payload.location,
+                        description: payload.description,
+                        requirements: payload.requirements,
+                        responsibilities: payload.responsibilities,
+                        skills: payload.skills,
+                        benefits: payload.benefits,
+                        experience_level: payload.experience_level,
+                        salary_min: payload.salary_min,
+                        salary_max: payload.salary_max
+                    };
+                    const { data: fallbackUpdated } = await supabase
+                        .from('jobs')
+                        .update(fallbackPayload)
+                        .eq('id', editingJobId)
+                        .select()
+                        .single();
+                    job = fallbackUpdated || { id: editingJobId, ...payload };
+                } else {
+                    job = updated || { id: editingJobId, ...payload };
+                }
             } else {
                 const { data: created, error: supaErr } = await supabase
                     .from('jobs')
                     .insert([payload])
                     .select()
                     .single();
-                job = created || { id: Date.now(), ...payload };
+                if (supaErr) {
+                    console.warn("Supabase insert error:", supaErr);
+                    // Fallback to core columns if custom columns not present
+                    const fallbackPayload = {
+                        title: payload.title,
+                        location: payload.location,
+                        description: payload.description,
+                        requirements: payload.requirements,
+                        responsibilities: payload.responsibilities,
+                        skills: payload.skills,
+                        benefits: payload.benefits,
+                        experience_level: payload.experience_level,
+                        salary_min: payload.salary_min,
+                        salary_max: payload.salary_max,
+                        status: 'Active'
+                    };
+                    const { data: fallbackCreated } = await supabase
+                        .from('jobs')
+                        .insert([fallbackPayload])
+                        .select()
+                        .single();
+                    job = fallbackCreated || { id: Date.now(), ...payload };
+                } else {
+                    job = created || { id: Date.now(), ...payload };
+                }
             }
 
             setJobsData((prev) =>
@@ -333,12 +389,11 @@ const JobsTab = () => {
                 job.employment_type || job.position_type || "",
             visa_status: Array.isArray(job.visa_status)
                 ? job.visa_status
-                : [],
+                : (typeof job.visa_status === 'string' ? job.visa_status.split(',').map(s => s.trim()).filter(Boolean) : []),
             skills: {
-                primary: job.skills?.primary || [""],
-                secondary: job.skills?.secondary || [""],
-                nice_to_have:
-                    job.skills?.nice_to_have || [""],
+                primary: Array.isArray(job.skills?.primary) ? job.skills.primary : (Array.isArray(job.skills) ? job.skills : []),
+                secondary: Array.isArray(job.skills?.secondary) ? job.skills.secondary : [],
+                nice_to_have: Array.isArray(job.skills?.nice_to_have) ? job.skills.nice_to_have : [],
             },
             requirements:
                 job.requirements?.length > 0
@@ -412,7 +467,9 @@ const JobsTab = () => {
     };
 
     const toggleVisaStatus = (opt) => {
-        const current = formData.visa_status || [];
+        const current = Array.isArray(formData.visa_status)
+            ? formData.visa_status
+            : (typeof formData.visa_status === 'string' ? formData.visa_status.split(',').map(s => s.trim()).filter(Boolean) : []);
         const updated = current.includes(opt)
             ? current.filter((v) => v !== opt)
             : [...current, opt];
@@ -489,9 +546,9 @@ const JobsTab = () => {
                                     {job.start_date || "-"}
                                 </td>
                                 <td className="px-6 py-4 text-gray-600">
-                                    {job.visa_status && job.visa_status.length > 0
-                                        ? job.visa_status.join(", ")
-                                        : "-"}
+                                    {Array.isArray(job.visa_status)
+                                        ? (job.visa_status.length > 0 ? job.visa_status.join(", ") : "-")
+                                        : (job.visa_status || "-")}
                                 </td>
                                 <td className="px-6 py-4 space-x-2">
                                     <button

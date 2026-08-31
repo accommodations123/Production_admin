@@ -313,18 +313,22 @@ const ApplicationsTab = ({ searchTerm, setSearchTerm, statusFilter, setStatusFil
             try {
                 setLoading(true);
                 let rawData = [];
-                try {
-                    const endpoint = "/career/admin/applications?t=" + new Date().getTime();
-                    const res = await api.get(endpoint);
-                    if (res.data.applications && Array.isArray(res.data.applications)) {
-                        rawData = res.data.applications;
-                    } else if (Array.isArray(res.data)) {
-                        rawData = res.data;
-                    } else if (res.data.data && Array.isArray(res.data.data)) {
-                        rawData = res.data.data;
+                const isSupabaseFunctionsBase = BASE_URL.includes("supabase.co");
+
+                if (!isSupabaseFunctionsBase) {
+                    try {
+                        const endpoint = "/career/admin/applications?t=" + new Date().getTime();
+                        const res = await api.get(endpoint);
+                        if (res.data.applications && Array.isArray(res.data.applications)) {
+                            rawData = res.data.applications;
+                        } else if (Array.isArray(res.data)) {
+                            rawData = res.data;
+                        } else if (res.data.data && Array.isArray(res.data.data)) {
+                            rawData = res.data.data;
+                        }
+                    } catch (e) {
+                        console.warn("API career applications fetch note:", e.message);
                     }
-                } catch (e) {
-                    console.warn("API career applications fetch, using Supabase:", e.message);
                 }
 
                 if (rawData.length === 0 && supabase) {
