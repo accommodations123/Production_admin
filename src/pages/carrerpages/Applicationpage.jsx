@@ -5,7 +5,7 @@ import {
     UserGroupIcon, DocumentTextIcon, ArrowDownTrayIcon,
     XMarkIcon, PaperAirplaneIcon, ClockIcon as PendingIcon,
     ArrowRightIcon, CheckIcon, SparklesIcon, BriefcaseIcon,
-    CalendarIcon, PhoneIcon, ArrowPathIcon
+    CalendarIcon, PhoneIcon, ArrowPathIcon, MapPinIcon, BuildingOfficeIcon
 } from '@heroicons/react/24/outline';
 import { formatUTCDate } from '../../utils/timezone';
 import { supabase } from '../../lib/supabase';
@@ -16,7 +16,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("admin-auth");
+    const token = localStorage.getItem("admin-auth") || localStorage.getItem("token");
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -202,6 +202,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
         };
 
         const candidateInfo = raw.candidate || raw.user || raw.applicant || {};
+        const jobInfo = raw.jobs || raw.job || {};
 
         // Name Extraction
         let name = '';
@@ -268,22 +269,29 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
         const email = raw.email || candidateInfo.email || getNestedValue(raw, 'contact.email') || getNestedValue(candidateInfo, 'contact.email') || 'N/A';
         const phone = raw.phone || candidateInfo.phone || getNestedValue(raw, 'contact.phone') || getNestedValue(candidateInfo, 'contact.phone') || 'N/A';
 
-        // Job title
+        // Job Title & Metadata
         let jobTitle = '';
-        if (raw.job && typeof raw.job === 'object') {
-            jobTitle = raw.job.title || raw.job.name || raw.job.position || '';
-        } else {
+        if (typeof jobInfo === 'object') {
+            jobTitle = jobInfo.title || jobInfo.name || jobInfo.position || '';
+        }
+        if (!jobTitle) {
             jobTitle = raw.job_title || raw.job || raw.position || raw.role || '';
         }
 
         const FALLBACK_JOB_TITLES = {
             "2b3e71fa-4565-4067-8ac4-cffd8a59b627": "Senior Java Backend Developer",
-            "3eb26e3c-7af7-457f-ab4f-bfbb1a435e9e": "Full Stack Developer"
+            "3eb26e3c-7af7-457f-ab4f-bfbb1a435e9e": "Full Stack Developer",
+            "e258fecb-d11c-43ac-b0a5-8423280106cb": "Backend Developer",
+            "4b2f4ecf-1816-44af-9606-03196c7c4f9e": "Full Stack Developer"
         };
 
         if (!jobTitle) {
             jobTitle = FALLBACK_JOB_TITLES[raw.job_id] || 'Backend Developer';
         }
+
+        const company = jobInfo.company || raw.company || 'NextKinLife LLC';
+        const location = jobInfo.location || raw.location || 'India';
+        const employmentType = jobInfo.employment_type || jobInfo.position_type || raw.employment_type || 'W2';
 
         // Resume URL
         let resume = raw.resume_url || raw.resume || raw.cv || raw.cv_url || '';
@@ -302,54 +310,88 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             rawStatus: raw.status || 'submitted',
             name: name,
             email: email,
-            jobTitle: jobTitle || 'Backend Developer',
+            jobTitle: jobTitle,
+            company: company,
+            location: location,
+            employmentType: employmentType,
             resume: resume,
             applied: applied,
             experience: displayExp,
             score: raw.score || 0,
             phone: phone,
-            source: raw.source || 'Direct'
+            source: raw.source || 'NextKinLife Portal'
         };
     };
 
     /* =====================================================
-       FETCH APPLICATIONS
+       FETCH APPLICATIONS (SUPABASE + BACKEND API SYNC)
     ===================================================== */
     const fetchApplications = async () => {
         try {
             setLoading(true);
             setError(null);
-            let rawData = [];
-            const isSupabaseFunctionsBase = BASE_URL.includes("supabase.co");
+            let combinedApps = [];
+            const seenIds = new Set();
 
-            if (!isSupabaseFunctionsBase) {
+            // 1. Fetch from Supabase with joined jobs table
+            if (supabase) {
                 try {
-                    const endpoint = "/career/admin/applications?t=" + new Date().getTime();
-                    const res = await api.get(endpoint);
-                    if (res.data?.applications && Array.isArray(res.data.applications)) {
-                        rawData = res.data.applications;
-                    } else if (Array.isArray(res.data)) {
-                        rawData = res.data;
-                    } else if (res.data?.data && Array.isArray(res.data.data)) {
-                        rawData = res.data.data;
+                    const { data: supaApps, error: supaErr } = await supabase
+                        .from('job_applications')
+                        .select('*, jobs:job_id(title, company, location, employment_type)')
+                        .order('created_at', { ascending: false });
+
+                    if (!supaErr && Array.isArray(supaApps)) {
+                        supaApps.forEach(item => {
+                            if (item.id && !seenIds.has(item.id)) {
+                                seenIds.add(item.id);
+                                combinedApps.push(item);
+                            }
+                        });
                     }
-                } catch (e) {
-                    console.warn("API career applications fetch note:", e.message);
+                } catch (supaErr) {
+                    console.warn("Supabase applications fetch note:", supaErr.message);
                 }
             }
 
-            if (rawData.length === 0 && supabase) {
-                const { data: supaApps, error: supaErr } = await supabase
-                    .from('job_applications')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+            // 2. Fetch from Backend API as well
+            try {
+                const endpoints = [
+                    "/career/admin/applications?t=" + new Date().getTime(),
+                    "https://api.nextkinlife.live/career/admin/applications?t=" + new Date().getTime()
+                ];
 
-                if (!supaErr && supaApps) {
-                    rawData = supaApps;
+                for (const ep of endpoints) {
+                    try {
+                        const res = await api.get(ep);
+                        let apiList = [];
+                        if (res.data?.applications && Array.isArray(res.data.applications)) {
+                            apiList = res.data.applications;
+                        } else if (Array.isArray(res.data)) {
+                            apiList = res.data;
+                        } else if (res.data?.data && Array.isArray(res.data.data)) {
+                            apiList = res.data.data;
+                        }
+
+                        if (apiList.length > 0) {
+                            apiList.forEach(item => {
+                                const id = item.id || `${item.email}-${item.job_id}`;
+                                if (!seenIds.has(id)) {
+                                    seenIds.add(id);
+                                    combinedApps.push(item);
+                                }
+                            });
+                            break;
+                        }
+                    } catch (e) {
+                        // ignore secondary endpoint attempt error
+                    }
                 }
+            } catch (apiErr) {
+                console.warn("API career applications fetch note:", apiErr.message);
             }
 
-            const formattedData = rawData.map(formatApplicationData);
+            const formattedData = combinedApps.map(formatApplicationData);
             setApplications(formattedData);
 
         } catch (err) {
@@ -376,7 +418,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             if (supabase) {
                 const { data, error: supaErr } = await supabase
                     .from('job_applications')
-                    .select('*')
+                    .select('*, jobs:job_id(title, company, location, employment_type)')
                     .eq('id', id)
                     .single();
 
@@ -449,11 +491,10 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             try {
                 await api.patch(`/career/admin/applications/${appId}/status`, { status: normalized });
             } catch (apiErr) {
-                // Secondary fallback attempt
                 try {
                     await api.put(`/career/applications/${appId}`, { status: normalized });
                 } catch (e2) {
-                    // API endpoint might not be active, Supabase handled it
+                    // Supabase handled it
                 }
             }
 
@@ -480,7 +521,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             showNotification("No data to export", "error");
             return;
         }
-        const headers = ["Name", "Email", "Job Title", "Stage", "Experience", "Applied Date"];
+        const headers = ["Name", "Email", "Job Title", "Company", "Stage", "Experience", "Applied Date"];
         const csvRows = [];
         csvRows.push(headers.join(","));
         applications.forEach(app => {
@@ -488,6 +529,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                 `"${(app.name || '').replace(/"/g, '""')}"`,
                 `"${app.email || ''}"`,
                 `"${app.jobTitle || ''}"`,
+                `"${app.company || 'NextKinLife LLC'}"`,
                 `"${app.status.toUpperCase()}"`,
                 app.experience || 'N/A',
                 formatUTCDate(app.applied)
@@ -775,7 +817,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                                             <td className="px-5 py-4 whitespace-nowrap">
                                                 <div className="flex items-center">
                                                     <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
-                                                        {app.name ? app.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'NA'}
+                                                        {app.name ? app.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'N'}
                                                     </div>
                                                     <div className="ml-3 min-w-0 flex-1">
                                                         <div className="text-sm font-bold text-gray-900 truncate flex items-center gap-1.5">
@@ -790,7 +832,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                                             {/* Job Applied */}
                                             <td className="px-5 py-4 whitespace-nowrap hidden lg:table-cell">
                                                 <div className="text-sm font-semibold text-gray-900 truncate">{app.jobTitle}</div>
-                                                <div className="text-xs text-gray-500">NextKinLife LLC • via {app.source || 'Direct'}</div>
+                                                <div className="text-xs text-gray-500">{app.company || 'NextKinLife LLC'} • {app.location || 'India'} • {app.employmentType || 'W2'}</div>
                                             </td>
 
                                             {/* Recruitment Stage & Stepper Mini */}
@@ -925,7 +967,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                                                 </h3>
                                             </div>
                                             <p className="text-xs text-blue-200 mt-0.5">
-                                                NextKinLife LLC • Applied on {formatUTCDate(selectedApplication.applied)}
+                                                {selectedApplication.company || 'NextKinLife LLC'} • {selectedApplication.location || 'India'} • {selectedApplication.employmentType || 'W2'} • Applied on {formatUTCDate(selectedApplication.applied)}
                                             </p>
                                         </div>
                                     </div>
@@ -972,7 +1014,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-400 font-medium">Application Source</p>
-                                                <p className="text-sm font-medium text-slate-800">{selectedApplication.source || 'Direct'}</p>
+                                                <p className="text-sm font-medium text-slate-800">{selectedApplication.source || 'NextKinLife Portal'}</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-slate-400 font-medium">Applied Date</p>
