@@ -22,7 +22,10 @@ import {
   TrendingUp,
   Building,
   Check,
-  Ban
+  Ban,
+  RotateCcw,
+  Sparkles,
+  Layers
 } from "lucide-react";
 import axios from "axios";
 import { supabase } from "../lib/supabase";
@@ -30,8 +33,8 @@ import { supabase } from "../lib/supabase";
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
 const PostStayRequests = () => {
-  const [activeTab, setActiveTab] = useState("pending"); // "pending" | "reports"
-  const [requests, setRequests] = useState([]);
+  const [activeTab, setActiveTab] = useState("pending"); // "pending" | "approved" | "rejected" | "all" | "reports"
+  const [allRequests, setAllRequests] = useState([]);
   const [stats, setStats] = useState(null);
   const [reports, setReports] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -66,75 +69,106 @@ const PostStayRequests = () => {
     }, 4000);
   };
 
-  /* ═══════ FETCH PENDING STAY REQUESTS ═══════ */
-  const fetchPendingRequests = useCallback(async () => {
+  /* ═══════ HELPER TO NORMALIZE STATUS ═══════ */
+  const getNormalizedStatus = (item) => {
+    if (!item) return 'pending';
+    const s = (item.status || '').toLowerCase().trim();
+    if (s === 'approved' || item.is_approved === true) return 'approved';
+    if (s === 'rejected' || (item.is_approved === false && s === 'rejected')) return 'rejected';
+    if (s === 'pending' || s === 'submitted' || s === 'open' || s === 'active' || s === 'new' || !s) {
+      return 'pending';
+    }
+    return s;
+  };
+
+  /* ═══════ FETCH ALL STAY REQUESTS ═══════ */
+  const fetchAllRequests = useCallback(async () => {
     try {
       setLoading(true);
-      let list = [];
-      try {
-        const res = await axios.get(`${BASE_URL}/admin/stay-request/pending`, getHeaders());
-        const data = res.data?.requests || res.data?.data || res.data?.stayRequests || res.data || [];
-        if (Array.isArray(data) && data.length > 0) list = data;
-      } catch (apiErr) {
-        console.warn("API stay-requests fetch, using Supabase:", apiErr.message);
+      const { data: supaRequests, error: supaErr } = await supabase
+        .from('stay_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (supaErr) {
+        console.error("Fetch stay requests error:", supaErr);
+        return;
       }
 
-      if (list.length === 0 && supabase) {
-        const { data: supaRequests } = await supabase.from('stay_requests').select('*').eq('status', 'pending');
-        list = supaRequests || [];
+      let list = supaRequests || [];
+
+      // Hydrate profile info if user_id is provided
+      const userIds = [...new Set(list.map(r => r.user_id).filter(Boolean))];
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, firstName, lastName, email, phone, avatar_url, profile_picture')
+          .in('id', userIds);
+
+        if (profiles && profiles.length > 0) {
+          const profileMap = new Map(profiles.map(p => [p.id, p]));
+          list = list.map(r => {
+            const prof = profileMap.get(r.user_id);
+            if (!prof) return r;
+            const profName = prof.full_name || `${prof.firstName || ''} ${prof.lastName || ''}`.trim();
+            return {
+              ...r,
+              userName: r.user_name || r.userName || profName || r.username,
+              userEmail: r.user_email || r.email || prof.email,
+              userPhone: r.user_phone || r.phone || prof.phone,
+              userAvatar: prof.avatar_url || prof.profile_picture,
+            };
+          });
+        }
       }
 
-      setRequests(Array.isArray(list) ? list : []);
+      setAllRequests(list);
+
+      // Set counts
+      const pendingCount = list.filter(r => getNormalizedStatus(r) === 'pending').length;
+      const approvedCount = list.filter(r => getNormalizedStatus(r) === 'approved').length;
+      const rejectedCount = list.filter(r => getNormalizedStatus(r) === 'rejected').length;
+
+      setStats({
+        total: list.length,
+        pending: pendingCount,
+        approved: approvedCount,
+        rejected: rejectedCount,
+      });
+
     } catch (err) {
       console.error("Fetch stay requests error:", err);
     } finally {
       setLoading(false);
-    }
-  }, [getHeaders]);
-
-  /* ═══════ FETCH STATISTICS ═══════ */
-  const fetchStats = useCallback(async () => {
-    try {
-      setStatsLoading(true);
-      let statsData = null;
-      try {
-        const res = await axios.get(`${BASE_URL}/admin/stay-request/statistics`, getHeaders());
-        statsData = res.data?.stats || res.data?.data || res.data?.statistics || res.data || null;
-      } catch (e) {}
-
-      if (!statsData && supabase) {
-        const { data: allReqs } = await supabase.from('stay_requests').select('status, is_approved');
-        const list = allReqs || [];
-        statsData = {
-          total: list.length,
-          pending: list.filter(r => r.status === 'pending').length,
-          approved: list.filter(r => r.is_approved || r.status === 'approved').length,
-          rejected: list.filter(r => r.status === 'rejected').length,
-        };
-      }
-
-      setStats(statsData);
-    } catch (err) {
-      console.error("Fetch stay request stats error:", err);
-    } finally {
       setStatsLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   /* ═══════ FETCH REPORTS ═══════ */
   const fetchReports = useCallback(async () => {
     try {
       setReportsLoading(true);
       let reportsList = [];
-      try {
-        const res = await axios.get(`${BASE_URL}/admin/stay-request/reports`, getHeaders());
-        const data = res.data?.reports || res.data?.data || res.data || [];
-        if (Array.isArray(data) && data.length > 0) reportsList = data;
-      } catch (e) {}
 
-      if (reportsList.length === 0 && supabase) {
-        const { data: supaReports } = await supabase.from('stay_request_reports').select('*');
-        reportsList = supaReports || [];
+      if (supabase) {
+        const { data: supaReports, error } = await supabase
+          .from('stay_request_reports')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(supaReports)) {
+          reportsList = supaReports;
+        }
+      }
+
+      if (reportsList.length === 0) {
+        try {
+          const res = await axios.get(`${BASE_URL}/admin/stay-request/reports`, getHeaders());
+          const data = res.data?.reports || res.data?.data || res.data || [];
+          if (Array.isArray(data) && data.length > 0) reportsList = data;
+        } catch {
+          // ignore
+        }
       }
 
       setReports(Array.isArray(reportsList) ? reportsList : []);
@@ -145,11 +179,43 @@ const PostStayRequests = () => {
     }
   }, [getHeaders]);
 
+  /* ═══════ REALTIME SUBSCRIPTION FOR INSTANT UPDATES ═══════ */
   useEffect(() => {
-    fetchPendingRequests();
-    fetchStats();
+    fetchAllRequests();
     fetchReports();
-  }, [fetchPendingRequests, fetchStats, fetchReports]);
+
+    if (!supabase) return;
+
+    // Listen for new requests, updates, or deletes live
+    const stayChannel = supabase
+      .channel('public:stay_requests')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stay_requests' },
+        (payload) => {
+          console.log('Realtime stay_request event received:', payload);
+          fetchAllRequests();
+        }
+      )
+      .subscribe();
+
+    const reportsChannel = supabase
+      .channel('public:stay_request_reports')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stay_request_reports' },
+        (payload) => {
+          console.log('Realtime stay_request_reports event received:', payload);
+          fetchReports();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(stayChannel);
+      supabase.removeChannel(reportsChannel);
+    };
+  }, [fetchAllRequests, fetchReports]);
 
   /* ═══════ APPROVE STAY REQUEST ═══════ */
   const handleApprove = async (id) => {
@@ -157,14 +223,18 @@ const PostStayRequests = () => {
       setActionLoading(`approve-${id}`);
       const { error: supaErr } = await supabase
         .from('stay_requests')
-        .update({ status: 'approved', is_approved: true })
+        .update({
+          status: 'approved',
+          is_approved: true,
+          rejection_reason: null,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', id);
 
       if (supaErr) throw supaErr;
       showToast("Stay request approved successfully", "success");
-      fetchPendingRequests();
-      fetchStats();
-      if (showModal && selectedRequest?._id === id) {
+      fetchAllRequests();
+      if (showModal && (selectedRequest?.id === id || selectedRequest?._id === id)) {
         setShowModal(false);
       }
     } catch (err) {
@@ -184,7 +254,8 @@ const PostStayRequests = () => {
         .update({
           status: 'rejected',
           is_approved: false,
-          rejection_reason: rejectReason || "Request does not meet quality/policy guidelines"
+          rejection_reason: rejectReason || "Request does not meet quality or policy guidelines",
+          updated_at: new Date().toISOString()
         })
         .eq('id', id);
 
@@ -192,9 +263,8 @@ const PostStayRequests = () => {
       showToast("Stay request rejected", "success");
       setRejectModalId(null);
       setRejectReason("");
-      fetchPendingRequests();
-      fetchStats();
-      if (showModal && selectedRequest?._id === id) {
+      fetchAllRequests();
+      if (showModal && (selectedRequest?.id === id || selectedRequest?._id === id)) {
         setShowModal(false);
       }
     } catch (err) {
@@ -205,35 +275,73 @@ const PostStayRequests = () => {
     }
   };
 
+  /* ═══════ RESTORE STAY REQUEST TO PENDING ═══════ */
+  const handleRestore = async (id) => {
+    try {
+      setActionLoading(`restore-${id}`);
+      const { error: supaErr } = await supabase
+        .from('stay_requests')
+        .update({
+          status: 'pending',
+          is_approved: false,
+          rejection_reason: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (supaErr) throw supaErr;
+      showToast("Request restored to pending status", "success");
+      fetchAllRequests();
+      if (showModal && (selectedRequest?.id === id || selectedRequest?._id === id)) {
+        setShowModal(false);
+      }
+    } catch (err) {
+      console.error("Restore error:", err);
+      showToast(err.message || "Failed to restore request", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   /* ═══════ STAT CARDS DATA ═══════ */
-  const pendingCount = stats?.pendingRequests ?? stats?.pending ?? requests.length;
-  const approvedCount = stats?.approvedRequests ?? stats?.approved ?? 0;
-  const rejectedCount = stats?.rejectedRequests ?? stats?.rejected ?? 0;
-  const totalCount = stats?.totalRequests ?? stats?.total ?? (pendingCount + approvedCount + rejectedCount);
+  const pendingCount = stats?.pending ?? allRequests.filter(r => getNormalizedStatus(r) === 'pending').length;
+  const approvedCount = stats?.approved ?? allRequests.filter(r => getNormalizedStatus(r) === 'approved').length;
+  const rejectedCount = stats?.rejected ?? allRequests.filter(r => getNormalizedStatus(r) === 'rejected').length;
+  const totalCount = stats?.total ?? allRequests.length;
   const reportsCount = reports.length;
 
   const statCards = [
-    { label: "Pending Approvals", value: pendingCount, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", border: "from-amber-500 to-orange-500" },
-    { label: "Approved Requests", value: approvedCount, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50", border: "from-emerald-500 to-teal-500" },
-    { label: "Rejected Requests", value: rejectedCount, icon: XCircle, color: "text-red-600", bg: "bg-red-50", border: "from-red-500 to-rose-500" },
-    { label: "Total Requests", value: totalCount, icon: Home, color: "text-blue-600", bg: "bg-blue-50", border: "from-blue-500 to-indigo-500" },
-    { label: "Reports & Flags", value: reportsCount, icon: ShieldAlert, color: "text-purple-600", bg: "bg-purple-50", border: "from-purple-500 to-violet-500" },
+    { label: "Pending Approvals", value: pendingCount, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", border: "from-amber-500 to-orange-500", tabKey: "pending" },
+    { label: "Approved Requests", value: approvedCount, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50", border: "from-emerald-500 to-teal-500", tabKey: "approved" },
+    { label: "Rejected Requests", value: rejectedCount, icon: XCircle, color: "text-red-600", bg: "bg-red-50", border: "from-red-500 to-rose-500", tabKey: "rejected" },
+    { label: "Total Requests", value: totalCount, icon: Home, color: "text-blue-600", bg: "bg-blue-50", border: "from-blue-500 to-indigo-500", tabKey: "all" },
+    { label: "Reports & Flags", value: reportsCount, icon: ShieldAlert, color: "text-purple-600", bg: "bg-purple-50", border: "from-purple-500 to-violet-500", tabKey: "reports" },
   ];
 
-  /* ═══════ FILTERING ═══════ */
-  const filteredRequests = requests.filter((r) => {
+  /* ═══════ FILTERING REQUESTS ═══════ */
+  const filteredRequests = allRequests.filter((r) => {
+    const normStatus = getNormalizedStatus(r);
+
+    // Tab Filter
+    if (activeTab === "pending" && normStatus !== "pending") return false;
+    if (activeTab === "approved" && normStatus !== "approved") return false;
+    if (activeTab === "rejected" && normStatus !== "rejected") return false;
+    // if activeTab === "all", show all
+
+    // Search Query Filter
     const title = (r.title || r.location || "").toLowerCase();
-    const city = (r.city || r.destinationCity || r.location?.city || "").toLowerCase();
-    const country = (r.country || r.destinationCountry || r.location?.country || "").toLowerCase();
-    const userName = (r.userName || r.user?.name || `${r.user?.firstName || ""} ${r.user?.lastName || ""}`).toLowerCase();
-    const desc = (r.description || r.stayDescription || "").toLowerCase();
+    const city = (r.city || r.destination_city || r.destinationCity || r.location?.city || "").toLowerCase();
+    const country = (r.country || r.destination_country || r.destinationCountry || r.location?.country || "").toLowerCase();
+    const userName = (r.userName || r.user_name || r.user?.name || "").toLowerCase();
+    const desc = (r.description || r.stay_description || r.stayDescription || r.notes || "").toLowerCase();
     const query = searchTerm.toLowerCase();
 
     const matchesSearch = title.includes(query) || city.includes(query) || country.includes(query) || userName.includes(query) || desc.includes(query);
-
     if (!matchesSearch) return false;
+
+    // Accommodation Type Filter
     if (typeFilter !== "all") {
-      const stayType = (r.stayType || r.accommodationType || r.roomType || "").toLowerCase();
+      const stayType = (r.stay_type || r.stayType || r.accommodation_type || r.accommodationType || r.room_type || "").toLowerCase();
       return stayType.includes(typeFilter.toLowerCase());
     }
 
@@ -259,20 +367,28 @@ const PostStayRequests = () => {
         {/* ── HEADER ──────────────────────────────────── */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Post Stay Requests</h1>
-            <p className="text-sm text-slate-400 mt-1">Review, approve, and moderate user accommodation stay requests</p>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+                <Building className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Post Stay Requests</h1>
+                <p className="text-sm text-slate-400">Review, approve, and moderate user accommodation stay requests in real-time</p>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={() => {
-              fetchPendingRequests();
-              fetchStats();
-              fetchReports();
-            }}
-            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading || statsLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                fetchAllRequests();
+                fetchReports();
+              }}
+              className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-95"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading || statsLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* ── STAT CARDS ──────────────────────────────── */}
@@ -280,7 +396,12 @@ const PostStayRequests = () => {
           {statCards.map((stat) => (
             <div
               key={stat.label}
-              className="bg-white rounded-2xl border border-slate-200/80 p-4 relative overflow-hidden hover:shadow-md transition-all group"
+              onClick={() => setActiveTab(stat.tabKey)}
+              className={`bg-white rounded-2xl border p-4 relative overflow-hidden transition-all group cursor-pointer ${
+                activeTab === stat.tabKey
+                  ? 'border-blue-500 ring-2 ring-blue-500/20 shadow-md'
+                  : 'border-slate-200/80 hover:shadow-md hover:border-slate-300'
+              }`}
             >
               <div className={`absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r ${stat.border}`} />
               <div className="flex items-start justify-between">
@@ -297,59 +418,94 @@ const PostStayRequests = () => {
         </div>
 
         {/* ── NAVIGATION TABS ─────────────────────────── */}
-        <div className="flex items-center gap-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto pb-px">
           <button
             onClick={() => setActiveTab("pending")}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === "pending"
-                ? "border-slate-900 text-slate-900"
+                ? "border-amber-500 text-amber-600 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
             <Clock className="w-4 h-4 text-amber-500" />
-            Pending Approval ({requests.length})
+            Pending Approval ({pendingCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("approved")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
+              activeTab === "approved"
+                ? "border-emerald-600 text-emerald-700 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
+            Approved ({approvedCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("rejected")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
+              activeTab === "rejected"
+                ? "border-red-500 text-red-600 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <XCircle className="w-4 h-4 text-red-500" />
+            Rejected ({rejectedCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
+              activeTab === "all"
+                ? "border-blue-600 text-blue-600 font-bold"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Layers className="w-4 h-4 text-blue-600" />
+            All Requests ({totalCount})
           </button>
           <button
             onClick={() => setActiveTab("reports")}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${
               activeTab === "reports"
-                ? "border-slate-900 text-slate-900"
+                ? "border-purple-600 text-purple-600 font-bold"
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
             <ShieldAlert className="w-4 h-4 text-purple-500" />
-            Stay Request Reports ({reports.length})
+            Stay Request Reports ({reportsCount})
           </button>
         </div>
 
-        {/* ── TAB CONTENT: PENDING REQUESTS ────────────── */}
-        {activeTab === "pending" && (
+        {/* ── TAB CONTENT: REQUESTS LIST (Pending / Approved / Rejected / All) ────────────── */}
+        {activeTab !== "reports" && (
           <div className="space-y-4">
             {/* SEARCH & FILTERS */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3">
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-3 shadow-sm">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by city, country, user name, description..."
+                  placeholder="Search by title, destination, city, country, applicant name, notes..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-300 focus:ring-2 focus:ring-slate-100 transition-all"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
-              <div className="flex flex-wrap gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs font-semibold text-slate-400 mr-1">Filter by Type:</span>
                 {[
-                  { key: "all", label: `All Requests (${requests.length})` },
+                  { key: "all", label: "All Types" },
                   { key: "apartment", label: "Apartment" },
                   { key: "villa", label: "Villa / House" },
                   { key: "room", label: "Private Room" },
                   { key: "studio", label: "Studio" },
+                  { key: "hostel", label: "PG / Hostel" },
                 ].map((f) => (
                   <button
                     key={f.key}
                     onClick={() => setTypeFilter(f.key)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                       typeFilter === f.key
                         ? "bg-slate-900 text-white shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:text-slate-800 hover:bg-slate-200"
@@ -371,51 +527,62 @@ const PostStayRequests = () => {
                       <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Target Location</th>
                       <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Requested By</th>
                       <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Dates & Budget</th>
-                      <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Guests / Type</th>
+                      <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Type & Status</th>
                       <th className="px-5 py-3.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
                     {!loading && filteredRequests.map((r) => {
-                      const id = r._id || r.id;
-                      const user = r.user || r.userId || {};
-                      const userName = r.userName || user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "User";
-                      const locationStr = r.city || r.destinationCity ? `${r.city || r.destinationCity}, ${r.country || r.destinationCountry || ""}` : (r.location || "Location not specified");
-                      const budget = r.budget || r.maxBudget || r.priceRange || r.estimatedBudget;
-                      const checkIn = r.checkInDate || r.startDate || r.from;
-                      const checkOut = r.checkOutDate || r.endDate || r.to;
-                      const stayType = r.stayType || r.accommodationType || r.propertyType || "Any Accommodation";
+                      const id = r.id || r._id;
+                      const normStatus = getNormalizedStatus(r);
+                      const userName = r.userName || r.user_name || r.name || "Anonymous User";
+                      const userEmail = r.userEmail || r.user_email || r.email || "";
+                      const locationStr = r.city || r.destination_city || r.destinationCity
+                        ? `${r.city || r.destination_city || r.destinationCity}${r.country || r.destination_country ? `, ${r.country || r.destination_country}` : ''}`
+                        : (r.location || "Flexible Location");
+                      const budget = r.budget || r.max_budget || r.maxBudget || r.priceRange || r.estimatedBudget || r.price;
+                      const checkIn = r.check_in || r.checkIn || r.checkInDate || r.check_in_date || r.startDate || r.start_date || r.from;
+                      const checkOut = r.check_out || r.checkOut || r.checkOutDate || r.check_out_date || r.endDate || r.end_date || r.to;
+                      const stayType = r.stay_type || r.stayType || r.accommodation_type || r.accommodationType || r.property_type || r.room_type || "Accommodation";
+                      const guestsCount = r.guests || r.numberOfGuests || r.guest_capacity || r.adults || 1;
 
                       return (
                         <tr key={id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="px-5 py-4 max-w-xs">
                             <div className="font-semibold text-slate-900 text-sm truncate">
-                              {r.title || `Stay in ${r.city || "Destination"}`}
+                              {r.title || `Stay in ${r.city || r.destination_city || "Destination"}`}
                             </div>
                             <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">
-                              {r.description || r.notes || "No details provided"}
+                              {r.description || r.stay_description || r.stayDescription || r.notes || "No details provided"}
                             </p>
                           </td>
 
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-1.5 text-xs text-slate-700 font-medium">
                               <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                              <span>{locationStr}</span>
+                              <span className="truncate max-w-[160px]">{locationStr}</span>
                             </div>
                           </td>
 
                           <td className="px-5 py-4">
-                            <div className="text-xs font-semibold text-slate-800">{userName}</div>
-                            <div className="text-xs text-slate-400 truncate">{user.email || r.userEmail || "No email"}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center shrink-0">
+                                {userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-semibold text-slate-800 truncate">{userName}</div>
+                                <div className="text-[11px] text-slate-400 truncate max-w-[140px]">{userEmail || "No email"}</div>
+                              </div>
+                            </div>
                           </td>
 
                           <td className="px-5 py-4 text-xs text-slate-600">
                             <div className="flex items-center gap-1 font-semibold text-slate-800">
-                              <DollarSign className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <DollarSign className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>{budget ? `${budget} ${r.currency || "USD"}` : "Flexible"}</span>
                             </div>
-                            <div className="flex items-center gap-1 text-slate-400 mt-0.5">
+                            <div className="flex items-center gap-1 text-slate-400 mt-0.5 text-[11px]">
                               <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>
                                 {checkIn ? new Date(checkIn).toLocaleDateString() : "Flexible dates"}
@@ -425,13 +592,24 @@ const PostStayRequests = () => {
                           </td>
 
                           <td className="px-5 py-4">
-                            <div className="flex flex-wrap gap-1">
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                {stayType}
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 capitalize">
+                                {stayType} • {guestsCount} {guestsCount === 1 ? 'Guest' : 'Guests'}
                               </span>
-                              {(r.guests || r.numberOfGuests || r.adults) && (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                  {r.guests || r.numberOfGuests || r.adults} Guests
+
+                              {normStatus === 'approved' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <Check className="w-2.5 h-2.5" /> Approved
+                                </span>
+                              )}
+                              {normStatus === 'rejected' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200">
+                                  <Ban className="w-2.5 h-2.5" /> Rejected
+                                </span>
+                              )}
+                              {normStatus === 'pending' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-2.5 h-2.5" /> Pending
                                 </span>
                               )}
                             </div>
@@ -452,27 +630,43 @@ const PostStayRequests = () => {
                               </button>
 
                               {/* Approve Button */}
-                              <button
-                                onClick={() => handleApprove(id)}
-                                disabled={actionLoading === `approve-${id}`}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
-                                title="Approve Stay Request"
-                              >
-                                <Check className="w-3.5 h-3.5" /> Approve
-                              </button>
+                              {normStatus !== 'approved' && (
+                                <button
+                                  onClick={() => handleApprove(id)}
+                                  disabled={actionLoading === `approve-${id}`}
+                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                  title="Approve Stay Request"
+                                >
+                                  <Check className="w-3.5 h-3.5" /> Approve
+                                </button>
+                              )}
 
                               {/* Reject Button */}
-                              <button
-                                onClick={() => {
-                                  setRejectModalId(id);
-                                  setRejectReason("");
-                                }}
-                                disabled={actionLoading === `reject-${id}`}
-                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 disabled:opacity-50"
-                                title="Reject Stay Request"
-                              >
-                                <Ban className="w-3.5 h-3.5" /> Reject
-                              </button>
+                              {normStatus !== 'rejected' && (
+                                <button
+                                  onClick={() => {
+                                    setRejectModalId(id);
+                                    setRejectReason("");
+                                  }}
+                                  disabled={actionLoading === `reject-${id}`}
+                                  className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1 disabled:opacity-50"
+                                  title="Reject Stay Request"
+                                >
+                                  <Ban className="w-3.5 h-3.5" /> Reject
+                                </button>
+                              )}
+
+                              {/* Restore to Pending */}
+                              {normStatus !== 'pending' && (
+                                <button
+                                  onClick={() => handleRestore(id)}
+                                  disabled={actionLoading === `restore-${id}`}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                                  title="Restore to Pending"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -485,17 +679,21 @@ const PostStayRequests = () => {
               {loading && (
                 <div className="p-12 text-center">
                   <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto" />
-                  <p className="mt-4 text-sm text-slate-400">Loading pending requests…</p>
+                  <p className="mt-4 text-sm text-slate-400">Loading stay requests…</p>
                 </div>
               )}
 
               {!loading && filteredRequests.length === 0 && (
                 <div className="p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-50 mb-3">
-                    <CheckCircle className="w-7 h-7 text-emerald-500" />
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 mb-3">
+                    <Home className="w-7 h-7 text-slate-400" />
                   </div>
-                  <h3 className="text-sm font-semibold text-slate-800">No pending stay requests</h3>
-                  <p className="text-xs text-slate-400 mt-1">All user stay requests have been reviewed</p>
+                  <h3 className="text-sm font-semibold text-slate-800">No stay requests found</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {activeTab === 'pending'
+                      ? "All pending stay requests have been moderated"
+                      : "No stay requests match the active filter or search"}
+                  </p>
                 </div>
               )}
             </div>
@@ -532,19 +730,19 @@ const PostStayRequests = () => {
 
                 <tbody className="divide-y divide-slate-100">
                   {!reportsLoading && reports.map((r) => {
-                    const reqId = r.stayRequestId || r.targetRequestId || r._id;
+                    const reqId = r.stay_request_id || r.stayRequestId || r.targetRequestId || r._id || r.id;
                     return (
-                      <tr key={r._id || r.id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr key={r.id || r._id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-5 py-4">
                           <div className="font-semibold text-slate-900 text-sm">
-                            {r.requestTitle || `Request #${(reqId || "").slice?.(0, 8)}`}
+                            {r.request_title || r.requestTitle || `Request #${(reqId || "").slice?.(0, 8)}`}
                           </div>
                           <div className="text-xs text-slate-400">ID: {(reqId || "").slice?.(0, 12)}</div>
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="text-xs font-medium text-slate-700">{r.reporterName || r.reporter?.name || "User"}</div>
-                          <div className="text-xs text-slate-400">{r.reporterEmail || r.reporter?.email || ""}</div>
+                          <div className="text-xs font-medium text-slate-700">{r.reporter_name || r.reporterName || r.reporter?.name || "User"}</div>
+                          <div className="text-xs text-slate-400">{r.reporter_email || r.reporterEmail || r.reporter?.email || ""}</div>
                         </td>
 
                         <td className="px-5 py-4 max-w-xs">
@@ -553,7 +751,7 @@ const PostStayRequests = () => {
                         </td>
 
                         <td className="px-5 py-4 text-xs text-slate-500">
-                          {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "N/A"}
+                          {r.created_at || r.createdAt ? new Date(r.created_at || r.createdAt).toLocaleDateString() : "N/A"}
                         </td>
 
                         <td className="px-5 py-4 text-right">
@@ -599,11 +797,13 @@ const PostStayRequests = () => {
 
         {/* ── STAY REQUEST DETAIL MODAL ────────────────── */}
         {showModal && selectedRequest && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200 shadow-2xl animate-scale-up">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur z-10">
                 <div className="flex items-center gap-2">
-                  <Home className="w-5 h-5 text-slate-700" />
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Home className="w-4 h-4" />
+                  </div>
                   <h2 className="text-lg font-bold text-slate-900">Stay Request Details</h2>
                 </div>
                 <button
@@ -617,79 +817,156 @@ const PostStayRequests = () => {
               <div className="p-6 space-y-6">
                 {(() => {
                   const r = selectedRequest;
-                  const id = r._id || r.id;
-                  const user = r.user || r.userId || {};
-                  const userName = r.userName || user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Anonymous User";
-                  const checkIn = r.checkInDate || r.startDate || r.from;
-                  const checkOut = r.checkOutDate || r.endDate || r.to;
+                  const id = r.id || r._id;
+                  const normStatus = getNormalizedStatus(r);
+                  const userName = r.userName || r.user_name || r.name || "Anonymous User";
+                  const userEmail = r.userEmail || r.user_email || r.email || "N/A";
+                  const userPhone = r.userPhone || r.user_phone || r.phone || "N/A";
+                  const checkIn = r.check_in || r.checkIn || r.checkInDate || r.check_in_date || r.startDate || r.start_date || r.from;
+                  const checkOut = r.check_out || r.checkOut || r.checkOutDate || r.check_out_date || r.endDate || r.end_date || r.to;
+                  const budget = r.budget || r.max_budget || r.maxBudget || r.priceRange || r.estimatedBudget || r.price;
+                  const stayType = r.stay_type || r.stayType || r.accommodation_type || r.accommodationType || r.property_type || r.room_type || "Accommodation";
+                  const guestsCount = r.guests || r.numberOfGuests || r.guest_capacity || r.adults || 1;
 
                   return (
                     <>
-                      {/* Header */}
-                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                        <h3 className="text-lg font-bold text-slate-900">{r.title || `Accommodation in ${r.city || "Destination"}`}</h3>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-                          <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {r.city || r.destinationCity || ""}, {r.country || r.destinationCountry || ""}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {checkIn ? new Date(checkIn).toLocaleDateString() : "Flexible"} - {checkOut ? new Date(checkOut).toLocaleDateString() : ""}</span>
-                          <span>•</span>
-                          <span className="font-semibold text-emerald-600 flex items-center"><DollarSign className="w-3.5 h-3.5" /> {r.budget || "Budget flexible"}</span>
-                        </div>
-                      </div>
-
-                      {/* Requester Info */}
-                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-2">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Requester Information</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
-                          <div><span className="font-semibold text-slate-500">Name:</span> {userName}</div>
-                          <div><span className="font-semibold text-slate-500">Email:</span> {user.email || r.userEmail || "N/A"}</div>
-                          <div><span className="font-semibold text-slate-500">Phone:</span> {user.phone || r.phone || "N/A"}</div>
-                          <div><span className="font-semibold text-slate-500">User ID:</span> {(user._id || user.id || r.userId || "").slice?.(0, 10)}...</div>
-                        </div>
-                      </div>
-
-                      {/* Request Description & Requirements */}
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description & Notes</h4>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed">
-                          {r.description || r.stayDescription || r.notes || "No special description provided."}
-                        </div>
-                      </div>
-
-                      {/* Amenities or Preferences */}
-                      {(r.amenities?.length > 0 || r.preferences?.length > 0 || r.tags?.length > 0) && (
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Preferences & Amenities</h4>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(r.amenities || r.preferences || r.tags || []).map((item, idx) => (
-                              <span key={idx} className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium border border-slate-200">
-                                {typeof item === "string" ? item : item.name || JSON.stringify(item)}
+                      {/* Header Card */}
+                      <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl p-4 border border-slate-200/80">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-900">
+                              {r.title || `Accommodation in ${r.city || r.destination_city || "Destination"}`}
+                            </h3>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
+                              <span className="flex items-center gap-1 font-medium text-slate-700">
+                                <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                                {r.city || r.destination_city || ""}{r.country || r.destination_country ? `, ${r.country || r.destination_country}` : ""}
                               </span>
-                            ))}
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                {checkIn ? new Date(checkIn).toLocaleDateString() : "Flexible"}
+                                {checkOut ? ` - ${new Date(checkOut).toLocaleDateString()}` : ""}
+                              </span>
+                            </div>
                           </div>
+
+                          <div>
+                            {normStatus === 'approved' && (
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                Approved
+                              </span>
+                            )}
+                            {normStatus === 'rejected' && (
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                                Rejected
+                              </span>
+                            )}
+                            {normStatus === 'pending' && (
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                Pending Review
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-slate-200/60 text-xs">
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Budget</span>
+                            <span className="font-bold text-emerald-600 text-sm">
+                              {budget ? `${budget} ${r.currency || "USD"}` : "Flexible"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Property Type</span>
+                            <span className="font-semibold text-slate-800 capitalize">{stayType}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Guests</span>
+                            <span className="font-semibold text-slate-800">{guestsCount} {guestsCount === 1 ? 'Guest' : 'Guests'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Requester Information */}
+                      <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-blue-600" /> Requester Information
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-700">
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Full Name</span>
+                            <span className="font-semibold text-slate-900">{userName}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Email Address</span>
+                            <span className="font-medium text-slate-700">{userEmail}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Phone Number</span>
+                            <span className="font-medium text-slate-700">{userPhone}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">User ID / Account</span>
+                            <span className="font-mono text-slate-500">{r.user_id ? `${r.user_id.slice(0, 14)}...` : "Guest / Not Linked"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Description & Requirements */}
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                          Description & Specific Preferences
+                        </h4>
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                          {r.description || r.stay_description || r.stayDescription || r.notes || "No additional description provided by user."}
+                        </div>
+                      </div>
+
+                      {/* Rejection Reason (if rejected) */}
+                      {r.rejection_reason && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-xs">
+                          <span className="font-bold text-red-800 block mb-1">Rejection Reason:</span>
+                          <span className="text-red-700">{r.rejection_reason}</span>
                         </div>
                       )}
 
                       {/* Modal Actions */}
                       <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleApprove(id)}
-                            disabled={actionLoading === `approve-${id}`}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
-                          >
-                            <Check className="w-4 h-4" /> Approve Request
-                          </button>
-                          <button
-                            onClick={() => {
-                              setRejectModalId(id);
-                              setRejectReason("");
-                            }}
-                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
-                          >
-                            <Ban className="w-4 h-4" /> Reject Request
-                          </button>
+                          {normStatus !== 'approved' && (
+                            <button
+                              onClick={() => handleApprove(id)}
+                              disabled={actionLoading === `approve-${id}`}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                            >
+                              <Check className="w-4 h-4" /> Approve Request
+                            </button>
+                          )}
+
+                          {normStatus !== 'rejected' && (
+                            <button
+                              onClick={() => {
+                                setRejectModalId(id);
+                                setRejectReason("");
+                              }}
+                              className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                            >
+                              <Ban className="w-4 h-4" /> Reject Request
+                            </button>
+                          )}
+
+                          {normStatus !== 'pending' && (
+                            <button
+                              onClick={() => handleRestore(id)}
+                              disabled={actionLoading === `restore-${id}`}
+                              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-4 h-4" /> Restore to Pending
+                            </button>
+                          )}
                         </div>
+
                         <button
                           onClick={() => setShowModal(false)}
                           className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
@@ -707,7 +984,7 @@ const PostStayRequests = () => {
 
         {/* ── REJECTION REASON PROMPT MODAL ───────────── */}
         {rejectModalId && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-md border border-slate-200 shadow-2xl p-5 space-y-4 animate-scale-up">
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-bold text-slate-900">Reject Stay Request</h3>
@@ -721,13 +998,13 @@ const PostStayRequests = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                  Reason for rejection (sent to user):
+                  Reason for rejection (will be recorded and notified):
                 </label>
                 <textarea
                   rows={3}
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="e.g. Inappropriate description, invalid dates, violates community rules..."
+                  placeholder="e.g. Inappropriate description, budget unrealistic, violates community guidelines..."
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100"
                 />
               </div>
@@ -742,7 +1019,7 @@ const PostStayRequests = () => {
                 <button
                   onClick={() => handleReject(rejectModalId)}
                   disabled={actionLoading === `reject-${rejectModalId}`}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-50"
                 >
                   Confirm Rejection
                 </button>
