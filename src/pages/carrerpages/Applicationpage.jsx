@@ -404,6 +404,22 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
 
     useEffect(() => {
         fetchApplications();
+
+        let channel = null;
+        if (supabase) {
+            channel = supabase
+                .channel('admin_job_applications_flow')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'job_applications' }, () => {
+                    fetchApplications();
+                })
+                .subscribe();
+        }
+
+        return () => {
+            if (channel && supabase) {
+                supabase.removeChannel(channel);
+            }
+        };
     }, []);
 
     /* =====================================================
