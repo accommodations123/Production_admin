@@ -44,8 +44,9 @@ import {
   MapPinIcon as MapPinSolid,
 } from "@heroicons/react/24/solid";
 
+import { parseImages, getImageUrl } from "../utils/imageUtils";
+import { notifyPropertyApproval, notifyPropertyRejection } from "../services/notificationService";
 import AccomadationStats from "../pages/AccommodationPages/AccomadationStats";
-import { getImageUrl, parseImages } from "../utils/imageUtils";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://admin.accom.nextkinlife.live";
 
@@ -387,13 +388,22 @@ const HostingApproval = () => {
       }
 
       // Automatically ensure host profile is verified and approved
-      if (property?.owner?.id || property?.host_id) {
-        const hostId = property?.owner?.id || property?.host_id;
+      const hostId = property?.owner?.id || property?.owner?._id || property?.host_id || property?.user_id;
+      const hostEmail = property?.owner?.email || property?.email;
+      if (hostId) {
         await supabase
           .from('profiles')
           .update({ status: 'approved', is_approved: true, is_verified: true })
           .eq('id', hostId);
       }
+
+      // Dispatch in-app & email notification
+      notifyPropertyApproval({
+        hostId,
+        hostEmail,
+        propertyTitle: property?.title || 'Property',
+        propertyId: id
+      });
 
       // Update local state
       setProperties(prev => prev.map(p =>
@@ -427,9 +437,10 @@ const HostingApproval = () => {
     setActionInProgress(true);
 
     try {
+      const reason = rejectionReason.trim();
       const { error: supaErr } = await supabase
         .from('properties')
-        .update({ status: 'rejected', is_approved: false, rejection_reason: rejectionReason.trim() })
+        .update({ status: 'rejected', is_approved: false, rejection_reason: reason })
         .eq('id', currentPropertyId);
 
       if (supaErr) {
@@ -438,12 +449,25 @@ const HostingApproval = () => {
         return;
       }
 
+      const property = properties.find(p => p._id === String(currentPropertyId) || p.id === currentPropertyId);
+      const hostId = property?.owner?.id || property?.owner?._id || property?.host_id || property?.user_id;
+      const hostEmail = property?.owner?.email || property?.email;
+
+      // Dispatch in-app & email notification
+      notifyPropertyRejection({
+        hostId,
+        hostEmail,
+        propertyTitle: property?.title || 'Property',
+        propertyId: currentPropertyId,
+        reason
+      });
+
       // Update local state
       setProperties(prev => prev.map(p =>
         p._id === String(currentPropertyId) ? {
           ...p,
           status: 'rejected',
-          rejectionReason: rejectionReason.trim()
+          rejectionReason: reason
         } : p
       ));
 
@@ -454,7 +478,6 @@ const HostingApproval = () => {
       }));
 
       // Show success notification
-      const property = properties.find(p => p._id === String(currentPropertyId));
       showToast(`"${property?.title || 'Property'}" has been rejected`, 'error');
 
       // Close modal
@@ -468,6 +491,7 @@ const HostingApproval = () => {
     } finally {
       setActionInProgress(false);
     }
+
   };
 
   const handleDelete = async (id) => {

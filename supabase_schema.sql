@@ -360,6 +360,31 @@ CREATE TABLE IF NOT EXISTS public.stay_request_reports (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 11. IN-APP & EMAIL NOTIFICATIONS
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID,
+    recipient_id UUID,
+    user_email TEXT,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    body TEXT,
+    type TEXT DEFAULT 'info',
+    action_url TEXT,
+    link TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT false,
+    read BOOLEAN DEFAULT false,
+    email_sent BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id ON public.notifications(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at DESC);
+
+
 -- ==============================================================================
 -- POSTGRESQL SECURITY HELPER FUNCTIONS (SECURITY DEFINER)
 -- ==============================================================================

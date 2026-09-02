@@ -254,6 +254,18 @@ const People = () => {
         is_verified: true
       }).eq('id', id);
       if (supaErr) throw supaErr;
+
+      // Find profile to send notification
+      const targetProfile = profiles.find(p => p.id === id || p._id === id);
+      if (targetProfile) {
+        const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'User';
+        notifyHostApproval({
+          hostId: id,
+          hostEmail: targetProfile.email,
+          hostName: pName
+        });
+      }
+
       showToast("Profile approved and verified successfully", "success");
       fetchProfiles();
       fetchAnalytics();
@@ -273,12 +285,26 @@ const People = () => {
     if (!profileId) return;
     try {
       setActionLoading(`${profileId}-reject`);
+      const rejReason = reason.trim() || "Rejected by administrator";
       const { error: supaErr } = await supabase.from('profiles').update({
         status: 'rejected',
         is_approved: false,
-        rejection_reason: reason.trim() || "Rejected by administrator"
+        rejection_reason: rejReason
       }).eq('id', profileId);
       if (supaErr) throw supaErr;
+
+      // Find profile to send notification
+      const targetProfile = profiles.find(p => p.id === profileId || p._id === profileId);
+      if (targetProfile) {
+        const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'Applicant';
+        notifyHostRejection({
+          hostId: profileId,
+          hostEmail: targetProfile.email,
+          hostName: pName,
+          reason: rejReason
+        });
+      }
+
       showToast("Profile rejected successfully", "success");
       setRejectDialog({ show: false, profileId: null, name: "", reason: "" });
       fetchProfiles();

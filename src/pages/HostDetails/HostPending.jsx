@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { notifyHostApproval, notifyHostRejection } from '../../services/notificationService';
 
 function HostPending() {
     const [hosts, setHosts] = useState([]);
@@ -88,6 +89,14 @@ function HostPending() {
                 return;
             }
 
+            // Dispatch in-app and email notification
+            const hostName = selectedHost.full_name || `${selectedHost.firstName || ''} ${selectedHost.lastName || ''}`.trim() || 'Host';
+            notifyHostApproval({
+                hostId: selectedHost.id,
+                hostEmail: selectedHost.email,
+                hostName
+            });
+
             setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
             closeModal();
             fetchHosts();
@@ -103,12 +112,13 @@ function HostPending() {
         if (!selectedHost || !rejectionReason.trim()) { alert("Please provide a rejection reason"); return; }
         try {
             setActionLoading(true);
+            const reason = rejectionReason.trim();
             const { error: supaErr } = await supabase
                 .from('profiles')
                 .update({
                     status: 'rejected',
                     is_approved: false,
-                    rejection_reason: rejectionReason.trim(),
+                    rejection_reason: reason,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedHost.id);
@@ -118,6 +128,15 @@ function HostPending() {
                 alert("Failed to reject: " + supaErr.message);
                 return;
             }
+
+            // Dispatch in-app and email notification
+            const hostName = selectedHost.full_name || `${selectedHost.firstName || ''} ${selectedHost.lastName || ''}`.trim() || 'Applicant';
+            notifyHostRejection({
+                hostId: selectedHost.id,
+                hostEmail: selectedHost.email,
+                hostName,
+                reason
+            });
 
             setHosts(prev => prev.filter(h => h.id !== selectedHost.id));
             closeModal();
@@ -129,6 +148,7 @@ function HostPending() {
             setActionLoading(false);
         }
     };
+
 
     // Helper to safely extract address & any embedded profile metadata
     const extractProfileData = (host) => {

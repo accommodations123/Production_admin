@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { Search, Bell, LogOut, ChevronRight, X, User, Settings, Sun, Moon } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import SearchModal from './SearchModal';
@@ -35,21 +35,14 @@ const timeAgo = (date) => {
   return `${days}d ago`;
 };
 
-/* ═══════════════════════════════════════════════════════════════
-   INITIAL NOTIFICATIONS
-   ═══════════════════════════════════════════════════════════════ */
-const createNotifications = () => [
-  { id: 1, text: 'New host registration pending review', time: new Date(Date.now() - 3 * 60000), read: false, dot: 'bg-blue-500' },
-  { id: 2, text: 'Property submission awaiting approval', time: new Date(Date.now() - 12 * 60000), read: false, dot: 'bg-amber-500' },
-  { id: 3, text: 'New event created: Community Meetup', time: new Date(Date.now() - 45 * 60000), read: true, dot: 'bg-emerald-500' },
-  { id: 4, text: 'Admin login from new device detected', time: new Date(Date.now() - 2 * 3600000), read: true, dot: 'bg-slate-400' },
-];
+import { supabase } from '../lib/supabase';
 
 const Header = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [notifications, setNotifications] = useState(createNotifications);
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
   const [, setTick] = useState(0); // force re-render for timeAgo
 
   /* Dark mode state */
@@ -61,6 +54,7 @@ const Header = () => {
   });
 
   const location = useLocation();
+  const navigate = useNavigate();
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
@@ -69,7 +63,100 @@ const Header = () => {
   const roleLabel = adminRole === 'super_admin' ? 'Super Admin'
     : adminRole === 'recruiter' ? 'Recruiter' : 'Admin';
 
+  /* ═══════ FETCH NOTIFICATIONS FROM SUPABASE ═══════ */
+  const fetchNotifications = useCallback(async () => {
+    try {
+      setNotifLoading(true);
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        // Table might not exist yet; gracefully fallback
+        console.warn("Notifications fetch notice:", error.message);
+        return;
+      }
+
+      const formatted = (data || []).map(n => ({
+        id: n.id,
+        text: n.title || n.message,
+        message: n.message,
+        title: n.title,
+        time: new Date(n.created_at || Date.now()),
+        read: n.is_read || n.read || false,
+        actionUrl: n.action_url || n.link || '',
+        dot: n.type?.includes('reject') ? 'bg-red-500'
+          : n.type?.includes('approve') ? 'bg-emerald-500'
+          : n.type?.includes('host') ? 'bg-blue-500'
+          : 'bg-amber-500'
+      }));
+
+      setNotifications(formatted);
+    } catch (err) {
+      console.error("Fetch notifications error:", err);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  /* ═══════ REALTIME NOTIFICATION SUBSCRIPTION ═══════ */
+  useEffect(() => {
+    fetchNotifications();
+
+    if (!supabase) return;
+    const channel = supabase
+      .channel('public:notifications_header')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+        fetchNotifications();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchNotifications]);
+
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      // Mark as read in local state
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+
+      // Mark as read in Supabase
+      if (typeof notif.id === 'string' && notif.id.length > 10) {
+        await supabase
+          .from('notifications')
+          .update({ is_read: true, read: true })
+          .eq('id', notif.id);
+      }
+
+      // Navigate if actionUrl is present
+      if (notif.actionUrl) {
+        setIsNotifOpen(false);
+        navigate(notif.actionUrl);
+      }
+    } catch (err) {
+      console.warn("Mark notification read error:", err);
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+      if (unreadIds.length > 0) {
+        await supabase
+          .from('notifications')
+          .update({ is_read: true, read: true })
+          .in('id', unreadIds);
+      }
+    } catch (err) {
+      console.warn("Mark all read error:", err);
+    }
+  };
 
   // Click-outside
   useEffect(() => {
@@ -114,10 +201,6 @@ const Header = () => {
     document.documentElement.classList.toggle('dark', isDark);
   }, []);
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
   // Breadcrumb logic
   const pathnames = location.pathname.split('/').filter(Boolean);
   const currentPageKey = pathnames[pathnames.length - 1] || 'dashboard';
@@ -127,6 +210,7 @@ const Header = () => {
     await logout();
     window.location.href = "/login";
   };
+
 
   return (
     <>
@@ -217,7 +301,7 @@ const Header = () => {
                         key={notif.id}
                         className={`px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer border-b border-slate-50 dark:border-slate-700/50 last:border-0 flex gap-3 transition-colors
                           ${!notif.read ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}
-                        onClick={() => setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n))}
+                        onClick={() => handleNotificationClick(notif)}
                       >
                         <div className={`w-2 h-2 mt-1.5 rounded-full ${notif.read ? 'bg-transparent' : notif.dot} shrink-0`} />
                         <div>
@@ -226,6 +310,12 @@ const Header = () => {
                         </div>
                       </div>
                     ))}
+                    {notifications.length === 0 && !notifLoading && (
+                      <div className="px-4 py-6 text-center text-xs text-slate-400">
+                        No notifications yet
+                      </div>
+                    )}
+
                   </div>
                 </div>
               )}

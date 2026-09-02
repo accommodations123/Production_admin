@@ -29,8 +29,10 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { supabase } from "../lib/supabase";
+import { notifyStayRequestApproval, notifyStayRequestRejection } from "../services/notificationService";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
 
 const PostStayRequests = () => {
   const [activeTab, setActiveTab] = useState("pending"); // "pending" | "approved" | "rejected" | "all" | "reports"
@@ -317,6 +319,19 @@ const PostStayRequests = () => {
         .eq('id', id);
 
       if (supaErr) throw supaErr;
+
+      // Dispatch in-app & email notification
+      const req = allRequests.find(r => r.id === id || r._id === id);
+      if (req) {
+        notifyStayRequestApproval({
+          userId: req.user_id,
+          userEmail: req.userEmail || req.email,
+          userName: req.userName || req.name || 'Traveler',
+          title: req.displayTitle || req.title || 'Stay Request',
+          requestId: id
+        });
+      }
+
       showToast("Stay request approved successfully", "success");
       fetchAllRequests();
       if (showModal && (selectedRequest?.id === id || selectedRequest?._id === id)) {
@@ -334,17 +349,32 @@ const PostStayRequests = () => {
   const handleReject = async (id) => {
     try {
       setActionLoading(`reject-${id}`);
+      const reason = rejectReason || "Request does not meet quality or policy guidelines";
       const { error: supaErr } = await supabase
         .from('stay_requests')
         .update({
           status: 'rejected',
           is_approved: false,
-          rejection_reason: rejectReason || "Request does not meet quality or policy guidelines",
+          rejection_reason: reason,
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
 
       if (supaErr) throw supaErr;
+
+      // Dispatch in-app & email notification
+      const req = allRequests.find(r => r.id === id || r._id === id);
+      if (req) {
+        notifyStayRequestRejection({
+          userId: req.user_id,
+          userEmail: req.userEmail || req.email,
+          userName: req.userName || req.name || 'Traveler',
+          title: req.displayTitle || req.title || 'Stay Request',
+          requestId: id,
+          reason
+        });
+      }
+
       showToast("Stay request rejected", "success");
       setRejectModalId(null);
       setRejectReason("");
@@ -359,6 +389,7 @@ const PostStayRequests = () => {
       setActionLoading(null);
     }
   };
+
 
   /* ═══════ RESTORE STAY REQUEST TO PENDING ═══════ */
   const handleRestore = async (id) => {

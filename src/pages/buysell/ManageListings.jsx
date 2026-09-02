@@ -4,11 +4,13 @@ import axios from "axios";
 import { utcToLocal } from "../../utils/timezone";
 import { supabase } from "../../lib/supabase";
 import { parseImages, getPrimaryImage } from "../../utils/imageUtils";
+import { notifyListingApproval, notifyListingRejection } from "../../services/notificationService";
 
 /* ==============================
    API CONFIG
 ================================ */
 const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+
 
 const api = axios.create({ baseURL: API_BASE });
 
@@ -417,6 +419,16 @@ const ManageListings = () => {
                 return;
             }
 
+            // Dispatch in-app & email notification
+            const sellerId = listing.user_id || listing.seller_id;
+            const sellerEmail = listing.email || listing.seller_email;
+            notifyListingApproval({
+                sellerId,
+                sellerEmail,
+                listingTitle: listing.title || 'Marketplace Item',
+                listingId: listing.id
+            });
+
             setPending(p => p.filter(x => x.id !== listing.id));
             fetchApproved();
             showNotification("success", "Listing approved successfully");
@@ -440,6 +452,19 @@ const ManageListings = () => {
                 return;
             }
 
+            // Dispatch in-app & email notification
+            if (listing) {
+                const sellerId = listing.user_id || listing.seller_id;
+                const sellerEmail = listing.email || listing.seller_email;
+                notifyListingRejection({
+                    sellerId,
+                    sellerEmail,
+                    listingTitle: listing.title || 'Marketplace Item',
+                    listingId: denyTarget,
+                    reason
+                });
+            }
+
             setPending(p => p.filter(x => x.id !== denyTarget));
             setDenied(d => [...d, { ...listing, status: "rejected", rejection_reason: reason }]);
             setDenyTarget(null);
@@ -449,6 +474,7 @@ const ManageListings = () => {
             showNotification("error", "Failed to deny listing");
         }
     };
+
 
     const data = activeTab === "pending" ? pending : activeTab === "approved" ? approved : denied;
 
