@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import {
     TrendingUp, Globe, Users, CheckCircle, Clock, XCircle,
     BarChart3, Activity, RefreshCw, AlertCircle
 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 const AccomadationStats = () => {
-    const BASE_URL = `${import.meta.env.VITE_API_URL || "https://api.nextkinlife.live"}/adminproperty`;
-
     const [statusStats, setStatusStats] = useState(null);
     const [countryStats, setCountryStats] = useState([]);
     const [hostStats, setHostStats] = useState([]);
@@ -21,58 +19,62 @@ const AccomadationStats = () => {
         if (!refreshing) setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem("admin-auth");
-
-        if (!token) {
-            setError("Token missing – Login again");
-            setLoading(false);
-            return;
-        }
-
         try {
-            const headers = {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
+            const { data: properties, error: supaErr } = await supabase.from('properties').select('*');
+            if (supaErr) throw supaErr;
+
+            const allProps = properties || [];
+
+            // 1. STATUS STATS
+            const approved = allProps.filter(p => p.status === 'approved' || p.is_approved === true).length;
+            const pending = allProps.filter(p => p.status === 'pending' && !p.is_approved).length;
+            const rejected = allProps.filter(p => p.status === 'rejected').length;
+
+            setStatusStats({
+                approved,
+                pending,
+                rejected
+            });
+
+            // 2. COUNTRY STATS
+            const countryCounts = {};
+            allProps.forEach(p => {
+                const country = p.country || 'Other';
+                countryCounts[country] = (countryCounts[country] || 0) + 1;
+            });
+            const formattedCountryStats = Object.entries(countryCounts).map(([country, total]) => ({
+                country,
+                total
+            })).sort((a, b) => b.total - a.total);
+            setCountryStats(formattedCountryStats);
+
+            // 3. HOST STATS (by host status in properties)
+            const hostCounts = {
+                approved,
+                pending,
+                rejected
             };
+            const formattedHostStats = [
+                { status: 'approved', total: approved },
+                { status: 'pending', total: pending },
+                { status: 'rejected', total: rejected }
+            ].filter(h => h.total > 0);
+            setHostStats(formattedHostStats);
 
-            // -------------------- 1. STATUS API --------------------
-            const statusRes = await axios.get(`${BASE_URL}/stats/by-status`, { headers });
-            const statusJson = statusRes.data;
-
-            // Convert your API → UI format
-            const formattedStatus = {
-                approved: statusJson.stats?.find(s => s.status === "approved")?.total || 0,
-                pending: statusJson.stats?.find(s => s.status === "pending")?.total || 0,
-                rejected: statusJson.stats?.find(s => s.status === "rejected")?.total || 0,
-            };
-
-            setStatusStats(formattedStatus);
-
-            // -------------------- 2. COUNTRY API --------------------
-            const countryRes = await axios.get(`${BASE_URL}/stats/by-country`, { headers });
-            const countryJson = countryRes.data;
-            setCountryStats(countryJson.stats || []);
-
-            // -------------------- 3. HOST API --------------------
-            const hostRes = await axios.get(`${BASE_URL}/stats/by-hosts`, { headers });
-            const hostJson = hostRes.data;
-            setHostStats(hostJson.stats || []);
-
-            // Set last updated time
             setLastUpdated(new Date());
-
         } catch (err) {
-            console.error("API ERROR:", err);
-            setError("Unable to load dashboard data");
+            console.error("Fetch stats error:", err);
+            setError("Unable to load accommodation statistics");
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-
-        setLoading(false);
-        setRefreshing(false);
     };
 
     useEffect(() => {
         fetchDashboardData();
     }, []);
+
 
     const handleRefresh = () => {
         setRefreshing(true);

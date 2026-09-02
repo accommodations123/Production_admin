@@ -13,16 +13,8 @@ import {
     PhotoIcon
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
+import { getImageUrl } from "../../utils/imageUtils";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
-const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    const normalizedPath = imagePath.replace(/\\/g, '/');
-    if (normalizedPath.startsWith('http')) return normalizedPath;
-    const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-    return `${API_BASE}/${cleanPath}`;
-};
 
 const PropertyDetail = ({ property, onBack }) => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);

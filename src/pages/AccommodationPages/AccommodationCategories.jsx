@@ -3,13 +3,12 @@ import { motion, AnimatePresence, } from 'framer-motion';
 import {
   Building, Plus, ArrowRight, Search, Filter, Grid, List, X, Home, Bell, Map, Eye, Edit, Trash2, Copy, Mail, Phone, CalendarDays, Wifi, Car, Coffee, Dumbbell, Tv, Wind, MoreHorizontal, XCircle, ChevronRight
 } from 'lucide-react';
-import axios from "axios";
+import { supabase } from "../../lib/supabase";
+import { parseImages, getImageUrl } from "../../utils/imageUtils";
 import PropertyList from "./PropertyList";
 import PropertyDetail from "./PropertyDetail";
 
 // --- CONFIG ---
-const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-const API_URL = `${BASE_URL}/admin/approved/approved-host-details`;
 const BRAND_COLORS = {
   primary: "#0f172a", // Slate-900
   accent: "#cb2926",  // Red
@@ -118,30 +117,36 @@ const AccommodationCategories = () => {
 
   // --- DATA FETCHING ---
   useEffect(() => {
+    let mounted = true;
     const fetchData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem("admin-auth");
-        if (!token) {
-          throw new Error("No authentication token found.");
-        }
+        const { data: supaProps, error: supaErr } = await supabase.from('properties').select('*');
 
-        const res = await axios.get(API_URL, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        if (supaErr) throw supaErr;
 
-        const json = res.data;
-        if (!json.success || !json.data) {
-          throw new Error("Invalid API response format");
+        let allProperties = supaProps || [];
+
+        // Enrich with host profile
+        const hostIds = [...new Set(allProperties.map(p => p.host_id).filter(Boolean))];
+        let profileMap = {};
+        if (hostIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
+          (profiles || []).forEach(p => {
+            profileMap[p.id] = p;
+          });
         }
 
         const grouped = {};
 
-        json.data.forEach((item) => {
+        allProperties.forEach((item) => {
+          const host = profileMap[item.host_id] || item.Host || {};
+          const catId = (item.category_id || item.property_type || 'other').toLowerCase();
+
           const normalized = {
             property: {
               id: item.id,
-              category_id: item.category_id,
+              category_id: catId,
               property_type: item.property_type,
               privacy_type: item.privacy_type,
               guests: item.guests,
@@ -149,59 +154,65 @@ const AccommodationCategories = () => {
               bathrooms: item.bathrooms,
               pets_allowed: item.pets_allowed,
               area: item.area,
-              title: item.title || `${item.property_type} in ${item.city}`,
+              title: item.title || `${item.property_type || 'Property'} in ${item.city || ''}`,
               description: item.description,
               country: item.country,
               city: item.city,
               address: item.address,
-              photos: item.photos || [],
+              photos: parseImages(item.photos, item.images, item.photo, item.image, item.image_url, item.media, item.gallery_images),
               video: item.video,
-              amenities: item.amenities || [],
-              rules: item.rules || [],
-              legal_docs: item.legal_docs || [],
+              amenities: Array.isArray(item.amenities) ? item.amenities : [],
+              rules: Array.isArray(item.rules) ? item.rules : [],
+              legal_docs: Array.isArray(item.legal_docs) ? item.legal_docs : [],
               price_per_hour: item.price_per_hour,
-              price_per_night: item.price_per_night,
+              price_per_night: item.price_per_night || item.price || 0,
               price_per_month: item.price_per_month,
-              currency: item.currency,
+              currency: item.currency || '₹',
               status: item.status,
-              createdAt: item.createdAt,
+              createdAt: item.created_at || item.createdAt,
             },
             host: {
-              id: item.Host?.id,
-              full_name: item.Host?.full_name,
-              phone: item.Host?.phone,
-              email: item.Host?.User?.email,
+              id: host.id,
+              full_name: host.full_name || host.name || item.host_name || 'Host',
+              phone: host.phone || item.phone,
+              email: host.email || item.email,
             },
           };
 
-          if (!grouped[item.category_id]) {
-            grouped[item.category_id] = {
-              id: item.category_id,
-              name: CATEGORY_NAMES[item.category_id] || item.category_id.toUpperCase(),
-              icon: TYPE_ICONS[item.category_id] || Building,
-              description: `Browse all ${CATEGORY_NAMES[item.category_id] || item.category_id} properties`,
+          if (!grouped[catId]) {
+            grouped[catId] = {
+              id: catId,
+              name: CATEGORY_NAMES[catId] || catId.charAt(0).toUpperCase() + catId.slice(1),
+              icon: TYPE_ICONS[catId] || Building,
+              description: `Browse all ${CATEGORY_NAMES[catId] || catId} properties`,
               properties: [],
               count: 0,
             };
           }
 
-          grouped[item.category_id].properties.push(normalized);
-          grouped[item.category_id].count += 1;
+          grouped[catId].properties.push(normalized);
+          grouped[catId].count += 1;
         });
 
-        setCategories(Object.values(grouped));
-        setError(null);
+        if (mounted) {
+          setCategories(Object.values(grouped));
+          setError(null);
+        }
       } catch (err) {
         console.error("Error fetching accommodation data:", err);
-        setError(err.message);
-        setCategories([]);
+        if (mounted) {
+          setError(err.message || "Failed to load accommodations");
+          setCategories([]);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchData();
+    return () => { mounted = false; };
   }, []);
+
 
   // --- HANDLERS ---
   const handleBackToCategories = useCallback(() => {

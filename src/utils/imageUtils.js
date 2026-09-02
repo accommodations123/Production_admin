@@ -1,3 +1,39 @@
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dmhxnuxlodsshdkunngb.supabase.co';
+
+/**
+ * Utility helper to convert any image path (relative, Supabase storage path, or full URL)
+ * into a valid, displayable image URL.
+ */
+export const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    let path = imagePath;
+    if (typeof path === 'object') {
+        path = path.url || path.uri || path.src || path.link || path.path;
+    }
+    if (!path || typeof path !== 'string') return null;
+
+    const trimmed = path.trim();
+    if (!trimmed) return null;
+
+    // Full URL or data/blob URL
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image') || trimmed.startsWith('blob:')) {
+        return trimmed;
+    }
+
+    // Normalize slashes
+    const cleanPath = trimmed.replace(/\\/g, '/').replace(/^\/+/, '');
+
+    // If it's a Supabase storage path
+    if (cleanPath.startsWith('storage/v1/object/public/')) {
+        return `${SUPABASE_URL}/${cleanPath}`;
+    }
+    if (cleanPath.startsWith('media/')) {
+        return `${SUPABASE_URL}/storage/v1/object/public/${cleanPath}`;
+    }
+
+    return `${SUPABASE_URL}/storage/v1/object/public/media/${cleanPath}`;
+};
+
 /**
  * Utility helper to safely parse images from different formats
  * (PostgreSQL JSONB string, JSON string, Array of strings, Array of objects, or single URL string)
@@ -11,14 +47,8 @@ export const parseImages = (...sources) => {
         // If it's already an Array
         if (Array.isArray(source)) {
             source.forEach(item => {
-                if (typeof item === 'string' && item.trim()) {
-                    results.push(item.trim());
-                } else if (item && typeof item === 'object') {
-                    const url = item.url || item.uri || item.src || item.link || item.path;
-                    if (typeof url === 'string' && url.trim()) {
-                        results.push(url.trim());
-                    }
-                }
+                const resolved = getImageUrl(item);
+                if (resolved) results.push(resolved);
             });
             return;
         }
@@ -34,14 +64,8 @@ export const parseImages = (...sources) => {
                     const parsed = JSON.parse(trimmed);
                     if (Array.isArray(parsed)) {
                         parsed.forEach(item => {
-                            if (typeof item === 'string' && item.trim()) {
-                                results.push(item.trim());
-                            } else if (item && typeof item === 'object') {
-                                const url = item.url || item.uri || item.src || item.link || item.path;
-                                if (typeof url === 'string' && url.trim()) {
-                                    results.push(url.trim());
-                                }
-                            }
+                            const resolved = getImageUrl(item);
+                            if (resolved) results.push(resolved);
                         });
                     }
                 } catch (e) {
@@ -54,20 +78,20 @@ export const parseImages = (...sources) => {
             if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
                 try {
                     const parsed = JSON.parse(trimmed);
-                    const url = parsed.url || parsed.uri || parsed.src || parsed.link || parsed.path;
-                    if (typeof url === 'string' && url.trim()) {
-                        results.push(url.trim());
-                    }
+                    const resolved = getImageUrl(parsed);
+                    if (resolved) results.push(resolved);
                 } catch (e) {
                     console.warn("Failed to JSON.parse image object string:", trimmed, e);
                 }
                 return;
             }
 
-            // Direct URL / relative URL string
-            if (trimmed.startsWith('http') || trimmed.startsWith('data:image') || trimmed.startsWith('/') || trimmed.startsWith('blob:')) {
-                results.push(trimmed);
-            }
+            // Direct URL or path
+            const resolved = getImageUrl(trimmed);
+            if (resolved) results.push(resolved);
+        } else if (typeof source === 'object') {
+            const resolved = getImageUrl(source);
+            if (resolved) results.push(resolved);
         }
     });
 
@@ -91,3 +115,4 @@ export const getPrimaryImage = (item) => {
     );
     return images.length > 0 ? images[0] : null;
 };
+

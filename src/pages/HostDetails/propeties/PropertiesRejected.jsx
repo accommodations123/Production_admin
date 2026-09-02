@@ -15,6 +15,7 @@ import {
 import { XCircleIcon as XCircleSolid } from '@heroicons/react/24/solid';
 
 import { supabase } from '../../../lib/supabase';
+import { parseImages, getImageUrl } from '../../../utils/imageUtils';
 
 const PropertyRejected = () => {
     const [properties, setProperties] = useState([]);
@@ -43,8 +44,14 @@ const PropertyRejected = () => {
                         (profiles || []).forEach(pr => { profileMap[pr.id] = pr; });
                         propList = propList.map(p => ({
                             ...p,
+                            photos: parseImages(p.photos, p.images, p.image, p.photo, p.image_url, p.media, p.gallery_images),
                             Host: profileMap[p.host_id] || p.Host || null,
                             owner: profileMap[p.host_id] || p.owner || null,
+                        }));
+                    } else {
+                        propList = propList.map(p => ({
+                            ...p,
+                            photos: parseImages(p.photos, p.images, p.image, p.photo, p.image_url, p.media, p.gallery_images),
                         }));
                     }
                     setProperties(propList);
@@ -59,6 +66,7 @@ const PropertyRejected = () => {
 
         fetchRejected();
     }, []);
+
 
     const handleRefresh = () => {
         setLoading(true);

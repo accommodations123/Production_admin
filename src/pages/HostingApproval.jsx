@@ -45,8 +45,9 @@ import {
 } from "@heroicons/react/24/solid";
 
 import AccomadationStats from "../pages/AccommodationPages/AccomadationStats";
+import { getImageUrl, parseImages } from "../utils/imageUtils";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
+const API_BASE = import.meta.env.VITE_API_URL || "https://admin.accom.nextkinlife.live";
 
 const API = {
   PENDING: `${API_BASE}/adminproperty/pending`,
@@ -56,14 +57,6 @@ const API = {
   REJECT: (id) => `${API_BASE}/adminproperty/reject/${id}`,
 };
 
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
-  // If the path is already a full URL, return it as-is
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
-  const normalizedPath = imagePath.replace(/\\/g, '/');
-  const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-  return `${API_BASE}/${cleanPath}`;
-};
 
 // --- UTILITIES ---
 function cn(...classes) {
@@ -264,7 +257,7 @@ const HostingApproval = () => {
       country: raw?.country ?? null,
       city: raw?.city ?? null,
       address: raw?.address ?? null,
-      photos: Array.isArray(raw?.photos) ? raw.photos : (raw?.photos ? [raw.photos] : []),
+      photos: parseImages(raw?.photos, raw?.images, raw?.photo, raw?.image, raw?.image_url, raw?.media, raw?.gallery_images, raw?.picture, raw?.thumbnail),
       video: raw?.video ?? null,
       amenities: Array.isArray(raw?.amenities) ? raw.amenities : (raw?.amenities ? [raw.amenities] : []),
       rules: Array.isArray(raw?.rules) ? raw.rules : (raw?.rules ? [raw.rules] : []),

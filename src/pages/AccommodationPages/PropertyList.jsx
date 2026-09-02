@@ -15,16 +15,8 @@ import {
   AdjustmentsHorizontalIcon
 } from "@heroicons/react/24/outline";
 import { StarIcon, HeartIcon as HeartSolidIcon } from "@heroicons/react/24/solid";
+import { getImageUrl, parseImages } from "../../utils/imageUtils";
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
-
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
-  const normalizedPath = imagePath.replace(/\\/g, '/');
-  if (normalizedPath.startsWith('http')) return normalizedPath;
-  const cleanPath = normalizedPath.startsWith('/') ? normalizedPath.substring(1) : normalizedPath;
-  return `${API_BASE}/${cleanPath}`;
-};
 
 const VIEW_MODES = { GRID: 'grid', LIST: 'list', MAP: 'map' };
 
