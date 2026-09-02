@@ -81,6 +81,90 @@ const PostStayRequests = () => {
     return s;
   };
 
+  /* ═══════ HELPER TO NORMALIZE STAY REQUEST ═══════ */
+  const normalizeStayRequest = (item) => {
+    if (!item) return {};
+    let parsedMeta = {};
+
+    // Parse title if it's a JSON string
+    if (typeof item.title === 'string' && item.title.trim().startsWith('{')) {
+      try {
+        parsedMeta = { ...parsedMeta, ...JSON.parse(item.title) };
+      } catch (e) {
+        console.warn("Could not parse title JSON:", e);
+      }
+    }
+
+    // Parse description if it's a JSON string
+    if (typeof item.description === 'string' && item.description.trim().startsWith('{')) {
+      try {
+        parsedMeta = { ...parsedMeta, ...JSON.parse(item.description) };
+      } catch (e) {
+        console.warn("Could not parse description JSON:", e);
+      }
+    }
+
+    // Parse notes if it's a JSON string
+    if (typeof item.notes === 'string' && item.notes.trim().startsWith('{')) {
+      try {
+        parsedMeta = { ...parsedMeta, ...JSON.parse(item.notes) };
+      } catch (e) {
+        console.warn("Could not parse notes JSON:", e);
+      }
+    }
+
+    const cleanTitle = parsedMeta.displayTitle ||
+      parsedMeta.title ||
+      (typeof item.title === 'string' && !item.title.trim().startsWith('{') ? item.title : null) ||
+      `Stay in ${item.city || item.destination_city || parsedMeta.city || "Destination"}`;
+
+    const cleanDescription = (typeof item.description === 'string' && !item.description.trim().startsWith('{') ? item.description : null) ||
+      parsedMeta.description ||
+      item.stay_description ||
+      item.notes ||
+      "";
+
+    const stayType = item.stay_type ||
+      item.stayType ||
+      parsedMeta.stayType ||
+      parsedMeta.propertyType ||
+      parsedMeta.accommodationType ||
+      item.accommodation_type ||
+      item.property_type ||
+      "Accommodation";
+
+    const seekerName = item.userName ||
+      item.user_name ||
+      parsedMeta.seekerName ||
+      parsedMeta.name ||
+      item.name ||
+      item.username ||
+      "Anonymous User";
+
+    const state = item.state || parsedMeta.state || "";
+    const city = item.city || item.destination_city || parsedMeta.city || "";
+    const country = item.country || item.destination_country || parsedMeta.country || "";
+    const furnishing = item.furnishing || parsedMeta.furnishing || null;
+    const whatsappNumber = item.whatsapp || item.whatsapp_number || parsedMeta.whatsappNumber || parsedMeta.whatsapp || null;
+
+    return {
+      ...item,
+      parsedMeta,
+      title: cleanTitle,
+      displayTitle: cleanTitle,
+      description: cleanDescription,
+      stay_type: stayType,
+      stayType,
+      userName: seekerName,
+      state,
+      city,
+      country,
+      furnishing,
+      whatsappNumber,
+      whatsapp: whatsappNumber,
+    };
+  };
+
   /* ═══════ FETCH ALL STAY REQUESTS ═══════ */
   const fetchAllRequests = useCallback(async () => {
     try {
@@ -95,7 +179,7 @@ const PostStayRequests = () => {
         return;
       }
 
-      let list = supaRequests || [];
+      let list = (supaRequests || []).map(normalizeStayRequest);
 
       // Hydrate profile info if user_id is provided
       const userIds = [...new Set(list.map(r => r.user_id).filter(Boolean))];
@@ -113,7 +197,7 @@ const PostStayRequests = () => {
             const profName = prof.full_name || `${prof.firstName || ''} ${prof.lastName || ''}`.trim();
             return {
               ...r,
-              userName: r.user_name || r.userName || profName || r.username,
+              userName: r.userName || profName || r.user_name || r.username,
               userEmail: r.user_email || r.email || prof.email,
               userPhone: r.user_phone || r.phone || prof.phone,
               userAvatar: prof.avatar_url || prof.profile_picture,
@@ -143,6 +227,7 @@ const PostStayRequests = () => {
       setStatsLoading(false);
     }
   }, []);
+
 
   /* ═══════ FETCH REPORTS ═══════ */
   const fetchReports = useCallback(async () => {
@@ -827,6 +912,8 @@ const PostStayRequests = () => {
                   const budget = r.budget || r.max_budget || r.maxBudget || r.priceRange || r.estimatedBudget || r.price;
                   const stayType = r.stay_type || r.stayType || r.accommodation_type || r.accommodationType || r.property_type || r.room_type || "Accommodation";
                   const guestsCount = r.guests || r.numberOfGuests || r.guest_capacity || r.adults || 1;
+                  const locationStr = [r.city, r.state, r.country].filter(Boolean).join(', ') || "Flexible Location";
+                  const displayTitle = r.displayTitle || r.title || `Accommodation in ${r.city || "Destination"}`;
 
                   return (
                     <>
@@ -835,12 +922,12 @@ const PostStayRequests = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h3 className="text-lg font-bold text-slate-900">
-                              {r.title || `Accommodation in ${r.city || r.destination_city || "Destination"}`}
+                              {displayTitle}
                             </h3>
                             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
                               <span className="flex items-center gap-1 font-medium text-slate-700">
                                 <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                                {r.city || r.destination_city || ""}{r.country || r.destination_country ? `, ${r.country || r.destination_country}` : ""}
+                                {locationStr}
                               </span>
                               <span>•</span>
                               <span className="flex items-center gap-1">
@@ -870,7 +957,7 @@ const PostStayRequests = () => {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 pt-3 border-t border-slate-200/60 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-200/60 text-xs">
                           <div>
                             <span className="text-slate-400 block text-[11px]">Budget</span>
                             <span className="font-bold text-emerald-600 text-sm">
@@ -880,6 +967,10 @@ const PostStayRequests = () => {
                           <div>
                             <span className="text-slate-400 block text-[11px]">Property Type</span>
                             <span className="font-semibold text-slate-800 capitalize">{stayType}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block text-[11px]">Furnishing</span>
+                            <span className="font-semibold text-slate-800">{r.furnishing || "Not specified"}</span>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[11px]">Guests</span>
@@ -906,6 +997,12 @@ const PostStayRequests = () => {
                             <span className="text-slate-400 block text-[11px]">Phone Number</span>
                             <span className="font-medium text-slate-700">{userPhone}</span>
                           </div>
+                          {r.whatsappNumber && (
+                            <div>
+                              <span className="text-slate-400 block text-[11px]">WhatsApp</span>
+                              <span className="font-medium text-slate-700">{r.whatsappNumber}</span>
+                            </div>
+                          )}
                           <div>
                             <span className="text-slate-400 block text-[11px]">User ID / Account</span>
                             <span className="font-mono text-slate-500">{r.user_id ? `${r.user_id.slice(0, 14)}...` : "Guest / Not Linked"}</span>
@@ -922,6 +1019,7 @@ const PostStayRequests = () => {
                           {r.description || r.stay_description || r.stayDescription || r.notes || "No additional description provided by user."}
                         </div>
                       </div>
+
 
                       {/* Rejection Reason (if rejected) */}
                       {r.rejection_reason && (
