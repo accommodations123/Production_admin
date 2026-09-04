@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { supabase } from "../lib/supabase";
+import { notifyHostApproval, notifyHostRejection } from "../services/notificationService";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -259,11 +260,15 @@ const People = () => {
       const targetProfile = profiles.find(p => p.id === id || p._id === id);
       if (targetProfile) {
         const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'User';
-        notifyHostApproval({
-          hostId: id,
-          hostEmail: targetProfile.email,
-          hostName: pName
-        });
+        try {
+          notifyHostApproval({
+            hostId: id,
+            hostEmail: targetProfile.email,
+            hostName: pName
+          });
+        } catch (notifErr) {
+          console.warn("Approval notification dispatch note:", notifErr);
+        }
       }
 
       showToast("Profile approved and verified successfully", "success");
@@ -297,12 +302,16 @@ const People = () => {
       const targetProfile = profiles.find(p => p.id === profileId || p._id === profileId);
       if (targetProfile) {
         const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'Applicant';
-        notifyHostRejection({
-          hostId: profileId,
-          hostEmail: targetProfile.email,
-          hostName: pName,
-          reason: rejReason
-        });
+        try {
+          notifyHostRejection({
+            hostId: profileId,
+            hostEmail: targetProfile.email,
+            hostName: pName,
+            reason: rejReason
+          });
+        } catch (notifErr) {
+          console.warn("Rejection notification dispatch note:", notifErr);
+        }
       }
 
       showToast("Profile rejected successfully", "success");

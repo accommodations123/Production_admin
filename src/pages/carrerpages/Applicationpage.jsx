@@ -279,6 +279,18 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             jobTitle = raw.job_title || raw.jobTitle || raw.job || raw.position || raw.role || '';
         }
 
+        if (!jobTitle && raw.job && typeof raw.job === 'object') {
+            jobTitle = raw.job.title || raw.job.name || raw.job.job_title || '';
+        }
+
+        if (!jobTitle && raw.notes) {
+            if (raw.notes.includes('Position:') || raw.notes.includes('Role:')) {
+                jobTitle = raw.notes.replace(/Position:\s*|Role:\s*/gi, '').trim();
+            } else if (raw.notes.trim().length > 0 && raw.notes.trim().length < 50) {
+                jobTitle = raw.notes.trim();
+            }
+        }
+
         const FALLBACK_JOB_TITLES = {
             "2b3e71fa-4565-4067-8ac4-cffd8a59b627": "Senior Java Backend Developer",
             "3eb26e3c-7af7-457f-ab4f-bfbb1a435e9e": "Full Stack Developer",
@@ -288,7 +300,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
         };
 
         if (!jobTitle) {
-            jobTitle = FALLBACK_JOB_TITLES[raw.job_id || raw.jobId] || 'Backend Developer';
+            jobTitle = FALLBACK_JOB_TITLES[raw.job_id || raw.jobId] || (raw.title || 'Technology Professional');
         }
 
         const company = jobInfo.company || raw.company || 'NextKinLife LLC';
@@ -331,49 +343,31 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
     /* =====================================================
        FETCH APPLICATIONS (SUPABASE TABLES + PROFILES + API)
     ===================================================== */
+    const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
     const fetchApplications = async () => {
         try {
             setLoading(true);
             setError(null);
             let combinedApps = [];
             const seenKeys = new Set();
+            const jobsMap = new Map();
 
-            // 1. Fetch from candidate profiles (where frontend saves submitted applications in street_address JSON)
+            // 1. Fetch live jobs directory for enrichment
             if (supabase) {
                 try {
-                    const { data: profs, error: profsErr } = await supabase
-                        .from('profiles')
-                        .select('id, name, email, phone, street_address');
-
-                    if (!profsErr && Array.isArray(profs)) {
-                        profs.forEach(p => {
-                            if (p.street_address && (p.street_address.startsWith('{') || p.street_address.startsWith('['))) {
-                                try {
-                                    const meta = JSON.parse(p.street_address);
-                                    if (Array.isArray(meta.job_applications)) {
-                                        meta.job_applications.forEach(app => {
-                                            const key = app.id || `${p.email}-${app.job_id || app.jobId || app.job?.id}`;
-                                            if (!seenKeys.has(key)) {
-                                                seenKeys.add(key);
-                                                combinedApps.push({
-                                                    ...app,
-                                                    candidateProfileId: p.id,
-                                                    candidateEmail: p.email,
-                                                    candidateName: p.name || app.full_name
-                                                });
-                                            }
-                                        });
-                                    }
-                                } catch (e) {}
-                            }
-                        });
+                    const { data: allJobs } = await supabase
+                        .from('jobs')
+                        .select('id, title, company, location, employment_type');
+                    if (Array.isArray(allJobs)) {
+                        allJobs.forEach(j => jobsMap.set(String(j.id), j));
                     }
-                } catch (profErr) {
-                    console.warn("Profiles applications fetch note:", profErr.message);
+                } catch (jErr) {
+                    console.warn("Jobs directory fetch note:", jErr.message);
                 }
             }
 
-            // 2. Fetch from Supabase job_applications table
+            // 2. Fetch from Supabase job_applications table (authoritative database records)
             if (supabase) {
                 try {
                     const { data: supaApps, error: supaErr } = await supabase
@@ -383,10 +377,16 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
 
                     if (!supaErr && Array.isArray(supaApps)) {
                         supaApps.forEach(item => {
-                            const key = item.id || `${item.email}-${item.job_id}`;
+                            const jId = item.job_id || item.jobId;
+                            const jobDetail = item.jobs || (jId ? jobsMap.get(String(jId)) : null);
+                            const resolved = jobDetail ? { ...item, jobs: jobDetail } : item;
+                            const key = item.id || `${item.email}-${item.job_id || item.notes || ''}`;
                             if (!seenKeys.has(key)) {
                                 seenKeys.add(key);
-                                combinedApps.push(item);
+                                if (item.email && (item.job_id || item.notes)) {
+                                    seenKeys.add(`${item.email}-${item.job_id || item.notes}`);
+                                }
+                                combinedApps.push(resolved);
                             }
                         });
                     }
@@ -395,7 +395,93 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
                 }
             }
 
-            // 3. Fetch from Backend REST API as well
+            // 3. Fetch from candidate profiles (covers applications submitted via frontend & stored in street_address or notifications)
+            if (supabase) {
+                try {
+                    const { data: profs, error: profsErr } = await supabase
+                        .from('profiles')
+                        .select('id, name, full_name, email, phone, street_address');
+
+                    if (!profsErr && Array.isArray(profs)) {
+                        profs.forEach(p => {
+                            if (p.street_address && (p.street_address.startsWith('{') || p.street_address.startsWith('['))) {
+                                try {
+                                    const meta = JSON.parse(p.street_address);
+                                    const candidateApps = [];
+
+                                    // Check meta.job_applications
+                                    if (Array.isArray(meta.job_applications)) {
+                                        candidateApps.push(...meta.job_applications);
+                                    }
+
+                                    // Check meta.notifications for job application events & metadata
+                                    if (Array.isArray(meta.notifications)) {
+                                        meta.notifications.forEach(n => {
+                                            if ((n.entityType === 'job_application' || n.entity_type === 'job_application' || n.type === 'JOB_APPLICATION_SUBMITTED') && n.metadata) {
+                                                candidateApps.push(n.metadata);
+                                            }
+                                        });
+                                    }
+
+                                    // Check any fallback arrays
+                                    if (Array.isArray(meta.applications)) candidateApps.push(...meta.applications);
+                                    if (Array.isArray(meta.career_applications)) candidateApps.push(...meta.career_applications);
+
+                                    candidateApps.forEach(app => {
+                                        const cEmail = p.email || app.email;
+                                        const jIdentifier = app.job_id || app.jobId || app.job?.id || app.jobTitle || app.job?.title || 'general';
+                                        const key = app.id || app._id || `${cEmail}-${jIdentifier}`;
+                                        const emailJobKey = `${cEmail}-${jIdentifier}`;
+
+                                        if (!seenKeys.has(key) && !seenKeys.has(emailJobKey)) {
+                                            seenKeys.add(key);
+                                            seenKeys.add(emailJobKey);
+
+                                            const resolvedJob = app.job || (app.job_id ? jobsMap.get(String(app.job_id)) : null);
+                                            const appObj = {
+                                                ...app,
+                                                candidateProfileId: p.id,
+                                                candidateEmail: cEmail,
+                                                candidateName: p.name || p.full_name || app.full_name || app.name || app.applicant_name,
+                                                phone: app.phone || p.phone,
+                                                job: resolvedJob || app.job
+                                            };
+                                            combinedApps.push(appObj);
+
+                                            // Auto-backfill to Supabase job_applications table so it's persisted in DB
+                                            (async () => {
+                                                try {
+                                                    const validJId = isUuid(app.job_id) ? app.job_id : (isUuid(resolvedJob?.id) ? resolvedJob.id : null);
+                                                    await supabase.from('job_applications').insert({
+                                                        job_id: validJId,
+                                                        applicant_name: appObj.candidateName || 'Applicant',
+                                                        name: appObj.candidateName || 'Applicant',
+                                                        email: cEmail,
+                                                        phone: appObj.phone || null,
+                                                        resume_url: app.resume_url || app.resume || null,
+                                                        linkedin_url: app.linkedin_url || null,
+                                                        experience_years: parseFloat(app.years_of_experience || app.experience) || null,
+                                                        status: 'Pending',
+                                                        notes: (resolvedJob?.title || app.jobTitle) ? `Position: ${resolvedJob?.title || app.jobTitle}` : null,
+                                                        source: 'NextKinLife Portal',
+                                                        created_at: app.created_at || app.createdAt || new Date().toISOString()
+                                                    });
+                                                } catch (backfillErr) {
+                                                    // Silently ignore backfill duplicate
+                                                }
+                                            })();
+                                        }
+                                    });
+                                } catch (e) {}
+                            }
+                        });
+                    }
+                } catch (profErr) {
+                    console.warn("Profiles applications fetch note:", profErr.message);
+                }
+            }
+
+            // 4. Fetch from Backend REST API as secondary fallback
             try {
                 const endpoints = [
                     "/career/admin/applications?t=" + new Date().getTime(),
@@ -416,7 +502,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
 
                         if (apiList.length > 0) {
                             apiList.forEach(item => {
-                                const key = item.id || `${item.email}-${item.job_id}`;
+                                const key = item.id || `${item.email}-${item.job_id || item.notes || ''}`;
                                 if (!seenKeys.has(key)) {
                                     seenKeys.add(key);
                                     combinedApps.push(item);
@@ -482,13 +568,13 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
         setSelectedApplication(null);
 
         try {
-            const found = applications.find(a => a.id === id);
+            const found = applications.find(a => String(a.id) === String(id) || String(a._id) === String(id));
             if (found) {
                 setSelectedApplication(found);
                 return;
             }
 
-            if (supabase) {
+            if (supabase && isUuid(id)) {
                 const { data, error: supaErr } = await supabase
                     .from('job_applications')
                     .select('*, jobs:job_id(title, company, location, employment_type)')
@@ -504,7 +590,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             throw new Error("Application not found");
         } catch (err) {
             console.error("Error fetching details:", err);
-            const found = applications.find(a => a.id === id);
+            const found = applications.find(a => String(a.id) === String(id) || String(a._id) === String(id));
             if (found) {
                 setSelectedApplication(found);
             } else {
@@ -521,7 +607,7 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
     ===================================================== */
     const updateStatus = async (appId, newStatus) => {
         const normalized = normalizeStatus(newStatus);
-        const currentApp = applications.find(app => app.id === appId);
+        const currentApp = applications.find(app => String(app.id) === String(appId) || String(app._id) === String(appId));
         if (currentApp && currentApp.status === normalized) {
             showNotification(`Application is already in "${normalized.toUpperCase()}" stage`, "info");
             return;
@@ -532,10 +618,10 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
 
         // Optimistic UI update
         setApplications(prev => prev.map(app =>
-            app.id === appId ? { ...app, status: normalized } : app
+            (String(app.id) === String(appId) || String(app._id) === String(appId)) ? { ...app, status: normalized } : app
         ));
 
-        if (selectedApplication && selectedApplication.id === appId) {
+        if (selectedApplication && (String(selectedApplication.id) === String(appId) || String(selectedApplication._id) === String(appId))) {
             setSelectedApplication(prev => ({ ...prev, status: normalized }));
         }
 
@@ -556,14 +642,38 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
 
                     if (targetProfile?.street_address && (targetProfile.street_address.startsWith('{') || targetProfile.street_address.startsWith('['))) {
                         let profileMeta = JSON.parse(targetProfile.street_address);
+                        let changed = false;
+
                         if (Array.isArray(profileMeta.job_applications)) {
                             profileMeta.job_applications = profileMeta.job_applications.map(item => {
-                                if (item.id === appId || item._id === appId || (currentApp?.job_id && (item.job_id === currentApp.job_id || item.jobId === currentApp.job_id || item.job?.id === currentApp.job_id))) {
+                                if (String(item.id) === String(appId) || String(item._id) === String(appId) || (currentApp?.job_id && String(item.job_id || item.jobId || item.job?.id) === String(currentApp.job_id))) {
+                                    changed = true;
                                     return { ...item, status: normalized, updated_at: new Date().toISOString() };
                                 }
                                 return item;
                             });
+                        }
 
+                        if (Array.isArray(profileMeta.notifications)) {
+                            profileMeta.notifications = profileMeta.notifications.map(notif => {
+                                if ((notif.entityType === 'job_application' || notif.entity_type === 'job_application' || notif.type === 'JOB_APPLICATION_SUBMITTED') && notif.metadata) {
+                                    if (String(notif.metadata.id) === String(appId) || String(notif.metadata._id) === String(appId) || (currentApp?.job_id && String(notif.metadata.job_id || notif.metadata.jobId || notif.metadata.job?.id) === String(currentApp.job_id))) {
+                                        changed = true;
+                                        return {
+                                            ...notif,
+                                            metadata: {
+                                                ...notif.metadata,
+                                                status: normalized,
+                                                updated_at: new Date().toISOString()
+                                            }
+                                        };
+                                    }
+                                }
+                                return notif;
+                            });
+                        }
+
+                        if (changed) {
                             await supabase.from('profiles').update({
                                 street_address: JSON.stringify(profileMeta)
                             }).eq('id', targetProfile.id);
@@ -577,13 +687,23 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
             // 2. Sync job_applications table in Supabase
             if (supabase) {
                 try {
-                    await supabase
-                        .from('job_applications')
-                        .update({
-                            status: normalized,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', appId);
+                    if (isUuid(appId)) {
+                        await supabase
+                            .from('job_applications')
+                            .update({
+                                status: normalized,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', appId);
+                    } else if (currentApp?.email) {
+                        await supabase
+                            .from('job_applications')
+                            .update({
+                                status: normalized,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('email', currentApp.email);
+                    }
                 } catch (supaErr) {
                     console.warn("job_applications table sync note:", supaErr.message);
                 }
@@ -604,8 +724,8 @@ const ApplicationsTab = ({ searchTerm = '', setSearchTerm = () => {}, statusFilt
         } catch (err) {
             console.error("Status update failed:", err);
             setApplications(originalApps);
-            if (selectedApplication && selectedApplication.id === appId) {
-                setSelectedApplication(originalApps.find(a => a.id === appId));
+            if (selectedApplication && (String(selectedApplication.id) === String(appId) || String(selectedApplication._id) === String(appId))) {
+                setSelectedApplication(originalApps.find(a => String(a.id) === String(appId) || String(a._id) === String(appId)));
             }
             showNotification(err.message || "Failed to update status", "error");
         } finally {
