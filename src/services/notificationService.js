@@ -33,23 +33,19 @@ export async function sendNotification({
 
   // 1. In-App Notification (Supabase)
   try {
-    if (targetUserId || targetEmail) {
+    if (targetUserId) {
       await supabase
         .from('notifications')
         .insert([{
-          user_id: targetUserId || null,
-          recipient_id: targetUserId || null,
-          user_email: targetEmail || null,
+          recipient_id: targetUserId,
+          target_role: 'user',
           title,
           message: notificationBody,
-          body: notificationBody,
-          type,
-          action_url: actionUrl,
-          link: actionUrl,
-          metadata,
+          type: (type || 'SYSTEM_NOTIFICATION').toUpperCase(),
+          action_url: actionUrl || '',
+          metadata: metadata || {},
+          channel: 'both',
           is_read: false,
-          read: false,
-          email_sent: false,
           created_at: new Date().toISOString()
         }]);
     }
@@ -96,7 +92,7 @@ export async function notifyHostApproval({ hostId, hostEmail, hostName = 'Host' 
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'host_approval',
+    type: 'HOST_APPROVED',
     title: '🎉 Your Host Account has been Approved!',
     message: `Hello ${hostName}, congratulations! Your host profile has been verified and approved by the NextKinLife administrator. You can now list properties and host travelers worldwide.`,
     actionUrl: '/dashboard/host-details',
@@ -111,7 +107,7 @@ export async function notifyHostRejection({ hostId, hostEmail, hostName = 'Appli
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'host_rejection',
+    type: 'HOST_REJECTED',
     title: 'Update on your Host Application',
     message: `Hello ${hostName}, your host application was reviewed by our moderation team. Unfortunately, it could not be approved at this time.${reason ? ` Reason: ${reason}` : ''} Please update your verification details and re-apply.`,
     actionUrl: '/dashboard/host-details',
@@ -126,7 +122,7 @@ export async function notifyPropertyApproval({ hostId, hostEmail, propertyTitle 
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'property_approval',
+    type: 'PROPERTY_APPROVED',
     title: '🏠 Property Listing Approved!',
     message: `Great news! Your property listing "${propertyTitle}" has been approved and is now live in the accommodation directory for travelers to book.`,
     actionUrl: `/accommodations/property/${propertyId}`,
@@ -141,7 +137,7 @@ export async function notifyPropertyRejection({ hostId, hostEmail, propertyTitle
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'property_rejection',
+    type: 'PROPERTY_REJECTED',
     title: 'Property Listing Update',
     message: `Your property listing "${propertyTitle}" was reviewed.${reason ? ` Reason: ${reason}` : ''} Please revise the listing details and submit again.`,
     actionUrl: `/accommodations/property/${propertyId}`,
@@ -156,7 +152,7 @@ export async function notifyStayRequestApproval({ userId, userEmail, userName = 
   return sendNotification({
     userId,
     userEmail,
-    type: 'stay_request_approval',
+    type: 'STAY_REQUEST_APPROVED',
     title: '✨ Stay Request Approved!',
     message: `Hello ${userName}, your stay request "${title}" has been approved and published to our community network. Hosts can now view and respond to your request.`,
     actionUrl: `/post-stay-requests/${requestId}`,
@@ -171,7 +167,7 @@ export async function notifyStayRequestRejection({ userId, userEmail, userName =
   return sendNotification({
     userId,
     userEmail,
-    type: 'stay_request_rejection',
+    type: 'STAY_REQUEST_REJECTED',
     title: 'Stay Request Update',
     message: `Hello ${userName}, your stay request "${title}" could not be approved at this time.${reason ? ` Reason: ${reason}` : ''}`,
     actionUrl: `/post-stay-requests/${requestId}`,
@@ -186,7 +182,7 @@ export async function notifyListingApproval({ sellerId, sellerEmail, listingTitl
   return sendNotification({
     userId: sellerId,
     userEmail: sellerEmail,
-    type: 'listing_approval',
+    type: 'BUY_SELL_APPROVED',
     title: '📦 Marketplace Listing Approved!',
     message: `Your marketplace listing "${listingTitle}" has been approved and is now visible to buyers across NextKinLife.`,
     actionUrl: `/buysell/item/${listingId}`,
@@ -201,7 +197,7 @@ export async function notifyListingRejection({ sellerId, sellerEmail, listingTit
   return sendNotification({
     userId: sellerId,
     userEmail: sellerEmail,
-    type: 'listing_rejection',
+    type: 'BUY_SELL_REJECTED',
     title: 'Marketplace Listing Update',
     message: `Your marketplace listing "${listingTitle}" was reviewed.${reason ? ` Reason: ${reason}` : ''}`,
     actionUrl: `/buysell/item/${listingId}`,
@@ -216,7 +212,7 @@ export async function notifyEventApproval({ hostId, hostEmail, eventTitle = 'Eve
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'event_approval',
+    type: 'EVENT_APPROVED',
     title: '🎉 Event Approved & Published!',
     message: `Your event "${eventTitle}" has been approved and is now live for community attendees to register.`,
     actionUrl: `/events/${eventId}`,
@@ -231,7 +227,7 @@ export async function notifyEventRejection({ hostId, hostEmail, eventTitle = 'Ev
   return sendNotification({
     userId: hostId,
     userEmail: hostEmail,
-    type: 'event_rejection',
+    type: 'EVENT_REJECTED',
     title: 'Event Moderation Notice',
     message: `Your event submission "${eventTitle}" could not be approved.${reason ? ` Reason: ${reason}` : ''}`,
     actionUrl: `/events/${eventId}`,
