@@ -65,6 +65,7 @@ import TripDetailsModal from "./TripDetailsModal";
 import TravelDashboard from "./TravelDashboard";
 import { formatUTCDate, formatUTCTime } from "../utils/timezone";
 import { supabase } from "../lib/supabase";
+import { notifyTravelApproval, notifyTravelRejection } from "../services/notificationService";
 
 /* =====================
    API CONFIG
@@ -166,9 +167,11 @@ export default function TravelAdmin() {
     setLoading(true);
     try {
       if (tripId && newStatus) {
-        // Update status cleanly. We use status as standard column.
+        // Update status cleanly. We use status and is_approved as standard columns.
+        const isApproved = newStatus === 'approved';
         const updatePayload = {
           status: newStatus,
+          is_approved: isApproved,
           updated_at: new Date().toISOString()
         };
         const { error: supaErr } = await supabase.from('travel_trips').update(updatePayload).eq('id', tripId);
@@ -176,6 +179,34 @@ export default function TravelAdmin() {
           console.error("Travel trip update error:", supaErr);
           setSnackbar({ open: true, message: supaErr.message || 'Action failed', severity: 'error' });
           return;
+        }
+
+        // Dispatch in-app notification & transactional email to traveler/host
+        const trip = trips.find(t => t.id === tripId || String(t.id) === String(tripId));
+        const hostId = trip?.host_id || trip?.user_id;
+        const hostEmail = trip?.host_email || trip?.email || trip?.host?.email;
+        const hostName = trip?.host_name || trip?.host?.full_name || trip?.host?.name || 'Traveler';
+
+        if (newStatus === 'approved') {
+          notifyTravelApproval({
+            hostId,
+            hostEmail,
+            hostName,
+            origin: trip?.origin,
+            destination: trip?.destination,
+            tripId,
+            title: trip?.title
+          });
+        } else if (newStatus === 'rejected') {
+          notifyTravelRejection({
+            hostId,
+            hostEmail,
+            hostName,
+            origin: trip?.origin,
+            destination: trip?.destination,
+            tripId,
+            title: trip?.title
+          });
         }
       }
 

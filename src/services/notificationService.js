@@ -404,3 +404,77 @@ export async function notifyStayRequestRejection({ userId, userEmail, userName =
     metadata: { requestId, status: 'rejected', reason }
   });
 }
+
+/**
+ * 6. TRAVEL / TRIP APPROVAL & REJECTION
+ */
+export async function notifyTravelApproval({ hostId, hostEmail, hostName = 'Traveler', origin, destination, tripId, title }) {
+  let routeTitle = 'Travel Trip';
+  if (origin && destination) {
+    routeTitle = `${origin} → ${destination}`;
+  } else if (title) {
+    try {
+      const parsed = typeof title === 'string' && title.startsWith('{') ? JSON.parse(title) : null;
+      if (parsed?.origin && parsed?.destination) {
+        routeTitle = `${parsed.origin} → ${parsed.destination}`;
+      } else if (parsed?.from_city && parsed?.to_city) {
+        routeTitle = `${parsed.from_city} → ${parsed.to_city}`;
+      } else if (typeof title === 'string' && !title.startsWith('{')) {
+        routeTitle = title;
+      }
+    } catch (e) {
+      if (typeof title === 'string' && !title.startsWith('{')) {
+        routeTitle = title;
+      }
+    }
+  }
+
+  return sendNotification({
+    userId: hostId,
+    userEmail: hostEmail,
+    type: 'TRAVEL_APPROVED',
+    entityType: 'travel',
+    entityId: tripId,
+    title: '✈️ Travel Trip Approved!',
+    subject: `✈️ Your Travel Trip "${routeTitle}" is Approved!`,
+    message: `Great news! Your travel trip "${routeTitle}" has been approved by NextKinLife admin and is now live and published for travelers to view and connect.`,
+    actionUrl: `/travel`,
+    metadata: { tripId, status: 'approved', origin, destination }
+  });
+}
+
+export async function notifyTravelRejection({ hostId, hostEmail, hostName = 'Traveler', origin, destination, tripId, title, reason }) {
+  let routeTitle = 'Travel Trip';
+  if (origin && destination) {
+    routeTitle = `${origin} → ${destination}`;
+  } else if (title) {
+    try {
+      const parsed = typeof title === 'string' && title.startsWith('{') ? JSON.parse(title) : null;
+      if (parsed?.origin && parsed?.destination) {
+        routeTitle = `${parsed.origin} → ${parsed.destination}`;
+      } else if (parsed?.from_city && parsed?.to_city) {
+        routeTitle = `${parsed.from_city} → ${parsed.to_city}`;
+      } else if (typeof title === 'string' && !title.startsWith('{')) {
+        routeTitle = title;
+      }
+    } catch (e) {
+      if (typeof title === 'string' && !title.startsWith('{')) {
+        routeTitle = title;
+      }
+    }
+  }
+
+  return sendNotification({
+    userId: hostId,
+    userEmail: hostEmail,
+    type: 'TRAVEL_REJECTED',
+    entityType: 'travel',
+    entityId: tripId,
+    title: 'Update on your Travel Trip',
+    subject: `Update on your Travel Trip "${routeTitle}"`,
+    message: `Your travel trip "${routeTitle}" was reviewed by our moderation team.${reason ? ` Reason: ${reason}` : ''} Please update your travel details and submit again.`,
+    actionUrl: `/travel`,
+    metadata: { tripId, status: 'rejected', origin, destination, reason }
+  });
+}
+
