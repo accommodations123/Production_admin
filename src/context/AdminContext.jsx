@@ -14,7 +14,44 @@ export function AdminProvider({ children }) {
 
     const checkAuth = async () => {
         try {
-            // 1. Check active Supabase session
+            // 1. Check direct admin session stored from admin_users
+            const storedAdminUser = localStorage.getItem("admin-user");
+            const isAdminLoggedIn = localStorage.getItem("admin-logged-in") === "true";
+
+            if (isAdminLoggedIn && storedAdminUser) {
+                try {
+                    const parsedAdmin = JSON.parse(storedAdminUser);
+                    if (parsedAdmin && parsedAdmin.role && VALID_ADMIN_ROLES.includes(parsedAdmin.role)) {
+                        // Background verification against admin_users
+                        if (supabase && parsedAdmin.email) {
+                            const { data: verifiedUser } = await supabase
+                                .from("admin_users")
+                                .select("*")
+                                .ilike("email", parsedAdmin.email)
+                                .maybeSingle();
+
+                            if (verifiedUser) {
+                                if (verifiedUser.status && verifiedUser.status !== "active") {
+                                    logout();
+                                    return;
+                                }
+                                parsedAdmin.role = verifiedUser.role || parsedAdmin.role;
+                                parsedAdmin.name = verifiedUser.name || parsedAdmin.name;
+                                localStorage.setItem("admin-role", parsedAdmin.role);
+                                localStorage.setItem("admin-user", JSON.stringify(parsedAdmin));
+                            }
+                        }
+
+                        setAdmin(parsedAdmin);
+                        setLoading(false);
+                        return;
+                    }
+                } catch (parseErr) {
+                    console.warn("Failed to parse stored admin user:", parseErr);
+                }
+            }
+
+            // 2. Check active Supabase session
             if (supabase) {
                 try {
                     const { data: { session } } = await supabase.auth.getSession();
@@ -38,6 +75,7 @@ export function AdminProvider({ children }) {
                             setAdmin(adminData);
                             localStorage.setItem("admin-role", role);
                             localStorage.setItem("admin-logged-in", "true");
+                            localStorage.setItem("admin-user", JSON.stringify(adminData));
                             if (session.access_token) {
                                 localStorage.setItem("admin-auth", session.access_token);
                             }
@@ -49,6 +87,7 @@ export function AdminProvider({ children }) {
                             localStorage.removeItem("admin-role");
                             localStorage.removeItem("admin-logged-in");
                             localStorage.removeItem("admin-auth");
+                            localStorage.removeItem("admin-user");
                             setLoading(false);
                             return;
                         }
@@ -58,7 +97,7 @@ export function AdminProvider({ children }) {
                 }
             }
 
-            // 2. Fallback to API Token verification
+            // 3. Fallback to API Token verification
             const token = localStorage.getItem("admin-auth");
             if (!token) {
                 setAdmin(null);
@@ -66,29 +105,43 @@ export function AdminProvider({ children }) {
                 return;
             }
 
-            const response = await axios.get(`${BASE_URL}/admin/me`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
+            try {
+                const response = await axios.get(`${BASE_URL}/admin/me`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    }
+                });
+                if (response.data && response.data.success) {
+                    const adminData = response.data.data || response.data.admin || response.data.user;
+                    setAdmin(adminData);
+                    if (adminData?.role) {
+                        localStorage.setItem("admin-role", adminData.role);
+                    }
+                    localStorage.setItem("admin-logged-in", "true");
+                    localStorage.setItem("admin-user", JSON.stringify(adminData));
+                } else {
+                    setAdmin(null);
+                    localStorage.removeItem("admin-role");
+                    localStorage.removeItem("admin-logged-in");
+                    localStorage.removeItem("admin-auth");
+                    localStorage.removeItem("admin-user");
                 }
-            });
-            if (response.data && response.data.success) {
-                const adminData = response.data.data || response.data.admin || response.data.user;
-                setAdmin(adminData);
-                if (adminData?.role) {
-                    localStorage.setItem("admin-role", adminData.role);
+            } catch (apiErr) {
+                // If token exists from admin-login without /admin/me endpoint, keep admin if admin-logged-in
+                if (!isAdminLoggedIn) {
+                    setAdmin(null);
+                    localStorage.removeItem("admin-role");
+                    localStorage.removeItem("admin-logged-in");
+                    localStorage.removeItem("admin-auth");
+                    localStorage.removeItem("admin-user");
                 }
-                localStorage.setItem("admin-logged-in", "true");
-            } else {
-                setAdmin(null);
-                localStorage.removeItem("admin-role");
-                localStorage.removeItem("admin-logged-in");
-                localStorage.removeItem("admin-auth");
             }
         } catch (err) {
             setAdmin(null);
             localStorage.removeItem("admin-role");
             localStorage.removeItem("admin-logged-in");
             localStorage.removeItem("admin-auth");
+            localStorage.removeItem("admin-user");
         } finally {
             setLoading(false);
         }
@@ -114,6 +167,7 @@ export function AdminProvider({ children }) {
             localStorage.removeItem("admin-role");
             localStorage.removeItem("admin-logged-in");
             localStorage.removeItem("admin-auth");
+            localStorage.removeItem("admin-user");
         }
     };
 

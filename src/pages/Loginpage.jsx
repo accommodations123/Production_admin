@@ -21,12 +21,66 @@ export default function AdminLogin() {
         setLoading(true);
 
         try {
-            // 1. Try Supabase Auth First
+            const cleanEmail = email.trim().toLowerCase();
+            const cleanPassword = password.trim();
+
+            // 1. Direct authentication via dedicated admin_users table
+            if (supabase) {
+                try {
+                    const { data: adminRecord, error: adminTableErr } = await supabase
+                        .from("admin_users")
+                        .select("*")
+                        .ilike("email", cleanEmail)
+                        .maybeSingle();
+
+                    if (adminRecord) {
+                        if (adminRecord.status && adminRecord.status !== "active") {
+                            alert(`Your admin account is currently ${adminRecord.status}. Please contact support.`);
+                            setLoading(false);
+                            return;
+                        }
+
+                        if (adminRecord.password === cleanPassword) {
+                            const role = adminRecord.role || "super_admin";
+                            const adminData = {
+                                id: adminRecord.id,
+                                email: adminRecord.email,
+                                name: adminRecord.name || "Admin",
+                                role,
+                            };
+
+                            const token = `admin-token-${adminRecord.id}-${Date.now()}`;
+                            localStorage.setItem("admin-logged-in", "true");
+                            localStorage.setItem("admin-auth", token);
+                            localStorage.setItem("admin-role", role);
+                            localStorage.setItem("admin-user", JSON.stringify(adminData));
+
+                            setAdmin(adminData);
+
+                            if (role === "recruiter") {
+                                navigate("/dashboard/career");
+                            } else {
+                                navigate("/dashboard");
+                            }
+                            setLoading(false);
+                            return;
+                        } else {
+                            alert("Invalid admin email or password!");
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                } catch (adminErr) {
+                    console.warn("admin_users query error, falling back to auth:", adminErr);
+                }
+            }
+
+            // 2. Fallback to Supabase GoTrue Auth (if registered in auth.users)
             if (supabase) {
                 try {
                     const { data: supaAuthData, error: supaError } = await supabase.auth.signInWithPassword({
-                        email: email.trim(),
-                        password: password.trim(),
+                        email: cleanEmail,
+                        password: cleanPassword,
                     });
 
                     if (!supaError && supaAuthData?.session) {
@@ -37,7 +91,7 @@ export default function AdminLogin() {
                         const { data: profile } = await supabase
                             .from("profiles")
                             .select("*")
-                            .eq("email", email.trim())
+                            .eq("email", cleanEmail)
                             .maybeSingle();
 
                         const role = profile?.role || user.user_metadata?.role || "super_admin";
@@ -51,6 +105,7 @@ export default function AdminLogin() {
                         localStorage.setItem("admin-logged-in", "true");
                         localStorage.setItem("admin-auth", session.access_token);
                         localStorage.setItem("admin-role", role);
+                        localStorage.setItem("admin-user", JSON.stringify(adminData));
 
                         setAdmin(adminData);
 

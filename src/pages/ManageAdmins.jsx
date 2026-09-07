@@ -180,31 +180,36 @@ function CreateAdminModal({ isOpen, onClose, onCreated }) {
         }
         setLoading(true);
         try {
-            const { data: authData, error: authErr } = await supabase.auth.signUp({
-                email: form.email,
-                password: form.password,
-                options: {
-                    data: {
-                        full_name: form.name,
-                        role: form.role,
-                    }
-                }
-            });
+            const cleanEmail = form.email.trim().toLowerCase();
+            const cleanName = form.name.trim();
 
-            if (authErr) throw authErr;
-
-            if (authData?.user) {
-                await supabase.from('profiles').upsert({
-                    id: authData.user.id,
-                    email: form.email,
-                    full_name: form.name,
+            // 1. Direct save to dedicated admin_users table
+            const { data: newAdmin, error: adminErr } = await supabase
+                .from('admin_users')
+                .upsert({
+                    email: cleanEmail,
+                    password: form.password.trim(),
+                    name: cleanName,
                     role: form.role,
-                    status: 'approved',
-                    is_approved: true,
-                });
-            }
+                    status: 'active',
+                }, { onConflict: 'email' })
+                .select()
+                .single();
 
-            onCreated({ name: form.name, email: form.email, role: form.role });
+            if (adminErr) throw adminErr;
+
+            // 2. Also keep public.profiles synchronized so admins have profile presence
+            await supabase.from('profiles').upsert({
+                email: cleanEmail,
+                full_name: cleanName,
+                name: cleanName,
+                role: form.role,
+                status: 'approved',
+                is_approved: true,
+                is_verified: true,
+            }, { onConflict: 'email' }).catch((e) => console.warn("Profile sync note:", e));
+
+            onCreated({ name: cleanName, email: cleanEmail, role: form.role });
             setForm({ name: "", email: "", password: "", role: "admin" });
             onClose();
         } catch (err) {
@@ -459,18 +464,50 @@ export default function ManageAdmins() {
     const fetchAdmins = async (page = 1) => {
         setLoading(true);
         try {
-            const { data, error: supaErr } = await supabase
+            // 1. Fetch from dedicated admin_users table
+            const { data: adminData, error: adminErr } = await supabase
+                .from('admin_users')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (adminErr) {
+                console.warn("Fetch admin_users error:", adminErr);
+            }
+
+            // 2. Also fetch from profiles table for any legacy admins
+            const { data: profileData, error: profileErr } = await supabase
                 .from('profiles')
                 .select('*')
                 .in('role', ['admin', 'super_admin', 'recruiter']);
 
-            if (supaErr) {
-                console.error("Fetch admins error:", supaErr);
-                setAdmins([]);
-            } else {
-                setAdmins(data || []);
-                setPagination({ page: 1, totalPages: 1, total: (data || []).length });
+            if (profileErr) {
+                console.warn("Fetch profiles error:", profileErr);
             }
+
+            // Merge unique by email
+            const adminMap = new Map();
+            (profileData || []).forEach((p) => {
+                if (p.email) {
+                    adminMap.set(p.email.toLowerCase(), {
+                        ...p,
+                        name: p.full_name || p.name || 'Admin',
+                        status: p.status || 'active',
+                    });
+                }
+            });
+            (adminData || []).forEach((a) => {
+                if (a.email) {
+                    adminMap.set(a.email.toLowerCase(), {
+                        ...a,
+                        name: a.name || 'Admin',
+                        status: a.status || 'active',
+                    });
+                }
+            });
+
+            const combined = Array.from(adminMap.values());
+            setAdmins(combined);
+            setPagination({ page: 1, totalPages: 1, total: combined.length });
         } catch (err) {
             showToast(err.message || "Error fetching admins", "error");
         }
