@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { supabase } from "../lib/supabase";
-import { notifyHostApproval, notifyHostRejection } from "../services/notificationService";
+import { notifyPeopleApproval, notifyPeopleRejection } from "../services/notificationService";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -261,10 +261,10 @@ const People = () => {
       if (targetProfile) {
         const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'User';
         try {
-          notifyHostApproval({
-            hostId: id,
-            hostEmail: targetProfile.email,
-            hostName: pName
+          notifyPeopleApproval({
+            userId: id,
+            userEmail: targetProfile.email,
+            userName: pName
           });
         } catch (notifErr) {
           console.warn("Approval notification dispatch note:", notifErr);
@@ -303,10 +303,10 @@ const People = () => {
       if (targetProfile) {
         const pName = targetProfile.full_name || `${targetProfile.firstName || ''} ${targetProfile.lastName || ''}`.trim() || 'Applicant';
         try {
-          notifyHostRejection({
-            hostId: profileId,
-            hostEmail: targetProfile.email,
-            hostName: pName,
+          notifyPeopleRejection({
+            userId: profileId,
+            userEmail: targetProfile.email,
+            userName: pName,
             reason: rejReason
           });
         } catch (notifErr) {

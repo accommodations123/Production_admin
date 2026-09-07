@@ -478,3 +478,37 @@ export async function notifyTravelRejection({ hostId, hostEmail, hostName = 'Tra
   });
 }
 
+/**
+ * 7. PEOPLE / PROFILE APPROVAL & REJECTION
+ */
+export async function notifyPeopleApproval({ userId, userEmail, userName = 'User' }) {
+  return sendNotification({
+    userId,
+    userEmail,
+    type: 'PEOPLE_APPROVED',
+    entityType: 'people',
+    entityId: userId,
+    title: '🎉 Your Profile is Approved!',
+    subject: '🎉 Congratulations! Your NextKinLife Profile is Approved & Verified',
+    message: `Hello ${userName}, congratulations! Your profile has been verified and approved by the NextKinLife administrator. You are now active and visible in the community directory.`,
+    actionUrl: `/people/${userId}`,
+    metadata: { userId, status: 'approved' }
+  });
+}
+
+export async function notifyPeopleRejection({ userId, userEmail, userName = 'Applicant', reason }) {
+  return sendNotification({
+    userId,
+    userEmail,
+    type: 'PEOPLE_REJECTED',
+    entityType: 'people',
+    entityId: userId,
+    title: 'Update on your Profile Verification',
+    subject: 'Update on your NextKinLife Profile Verification',
+    message: `Hello ${userName}, your profile verification was reviewed by our moderation team. Unfortunately, it could not be approved at this time.${reason ? ` Reason: ${reason}` : ''} Please update your profile verification details and re-apply.`,
+    actionUrl: `/people`,
+    metadata: { userId, status: 'rejected', reason }
+  });
+}
+
+
