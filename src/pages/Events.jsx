@@ -29,6 +29,7 @@ import {
   XCircleIcon as XCircleSolid,
 } from "@heroicons/react/24/solid";
 import moment from "moment";
+import { notifyEventApproval, notifyEventRejection } from "../services/notificationService";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://api.nextkinlife.live";
 
@@ -357,6 +358,8 @@ const Events = () => {
   // --- ACTIONS ---
   const handleApprove = async (id) => {
     try {
+      const event = events.find(e => e.id === id);
+
       const { error: supaErr } = await supabase
         .from('events')
         .update({ status: 'approved', is_approved: true })
@@ -367,9 +370,19 @@ const Events = () => {
         return;
       }
 
+      // Dispatch in-app notification & transactional email
+      const hostId = event?.organizer_id || event?.host_id || event?.user_id;
+      const hostEmail = event?.email || event?.organizer_email;
+      notifyEventApproval({
+        hostId,
+        hostEmail,
+        eventTitle: event?.title || 'Event',
+        eventId: id
+      });
+
       setEvents(prevEvents =>
-        prevEvents.map(event =>
-          event.id === id ? { ...event, status: 'approved' } : event
+        prevEvents.map(e =>
+          e.id === id ? { ...e, status: 'approved', is_approved: true } : e
         )
       );
       setRefreshKey(prev => prev + 1);
@@ -387,12 +400,15 @@ const Events = () => {
     if (!rejectionReason.trim() || !currentEventId) return;
 
     try {
+      const reason = rejectionReason.trim();
+      const event = events.find(e => e.id === currentEventId);
+
       const { error: supaErr } = await supabase
         .from('events')
         .update({
           status: 'rejected',
           is_approved: false,
-          rejection_reason: rejectionReason.trim()
+          rejection_reason: reason
         })
         .eq('id', currentEventId);
 
@@ -401,11 +417,22 @@ const Events = () => {
         return;
       }
 
+      // Dispatch in-app notification & transactional email
+      const hostId = event?.organizer_id || event?.host_id || event?.user_id;
+      const hostEmail = event?.email || event?.organizer_email;
+      notifyEventRejection({
+        hostId,
+        hostEmail,
+        eventTitle: event?.title || 'Event',
+        eventId: currentEventId,
+        reason
+      });
+
       setRejectModalOpen(false);
       setRejectionReason("");
       setEvents(prevEvents =>
-        prevEvents.map(event =>
-          event.id === currentEventId ? { ...event, status: 'rejected', rejection_reason: rejectionReason } : event
+        prevEvents.map(e =>
+          e.id === currentEventId ? { ...e, status: 'rejected', rejection_reason: reason, is_approved: false } : e
         )
       );
       setRefreshKey(prev => prev + 1);

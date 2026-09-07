@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { parseImages, getPrimaryImage } from '../../../utils/imageUtils';
+import { notifyListingApproval, notifyListingRejection } from '../../../services/notificationService';
 
 const BuySellPending = () => {
     const [listings, setListings] = useState([]);
@@ -63,12 +64,25 @@ const BuySellPending = () => {
     const handleApprove = async (id) => {
         setActionLoading(true);
         try {
+            const item = listings.find(l => l.id === id);
+
             const { error: supaErr } = await supabase
                 .from('buy_sell')
                 .update({ status: 'approved' })
                 .eq('id', id);
 
             if (supaErr) throw supaErr;
+
+            // Dispatch in-app & email notification
+            const sellerId = item?.user_id || item?.seller_id;
+            const sellerEmail = item?.email || item?.seller_email;
+            notifyListingApproval({
+                sellerId,
+                sellerEmail,
+                listingTitle: item?.title || 'Marketplace Item',
+                listingId: id
+            });
+
             setListings(prev => prev.filter(l => l.id !== id));
             setSelectedItem(null);
         } catch (err) {
@@ -86,15 +100,30 @@ const BuySellPending = () => {
         }
         setActionLoading(true);
         try {
+            const reason = rejectionReason.trim();
+            const item = listings.find(l => l.id === id);
+
             const { error: supaErr } = await supabase
                 .from('buy_sell')
                 .update({
                     status: 'rejected',
-                    rejection_reason: rejectionReason.trim()
+                    rejection_reason: reason
                 })
                 .eq('id', id);
 
             if (supaErr) throw supaErr;
+
+            // Dispatch in-app & email notification
+            const sellerId = item?.user_id || item?.seller_id;
+            const sellerEmail = item?.email || item?.seller_email;
+            notifyListingRejection({
+                sellerId,
+                sellerEmail,
+                listingTitle: item?.title || 'Marketplace Item',
+                listingId: id,
+                reason
+            });
+
             setListings(prev => prev.filter(l => l.id !== id));
             setSelectedItem(null);
             setIsRejecting(false);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { notifyEventApproval, notifyEventRejection } from '../../../services/notificationService';
 
 function EventPending() {
     const [events, setEvents] = useState([]);
@@ -25,17 +26,19 @@ function EventPending() {
                 const hostIds = [...new Set(eventList.map(e => e.host_id || e.user_id).filter(Boolean))];
                 if (hostIds.length > 0) {
                     const { data: profiles } = await supabase.from('profiles').select('*').in('id', hostIds);
-                    const profileMap = {};
-                    (profiles || []).forEach(p => { profileMap[p.id] = p; });
-                    eventList = eventList.map(e => ({
-                        ...e,
-                        Host: profileMap[e.host_id || e.user_id] || e.Host || null,
-                    }));
+                    if (profiles) {
+                        const profileMap = new Map(profiles.map(p => [p.id, p]));
+                        eventList = eventList.map(e => ({
+                            ...e,
+                            hostProfile: profileMap.get(e.host_id || e.user_id)
+                        }));
+                    }
                 }
                 setEvents(eventList);
             }
         } catch (e) {
             console.error(e);
+            setEvents([]);
         } finally {
             setLoading(false);
         }
@@ -48,12 +51,25 @@ function EventPending() {
     const handleApprove = async (id) => {
         setActionLoading(true);
         try {
+            const ev = events.find(e => e.id === id);
+
             const { error: supaErr } = await supabase
                 .from('events')
                 .update({ status: 'approved', is_approved: true })
                 .eq('id', id);
 
             if (supaErr) throw supaErr;
+
+            // Dispatch in-app & email notification
+            const hostId = ev?.organizer_id || ev?.host_id || ev?.user_id;
+            const hostEmail = ev?.email || ev?.organizer_email || ev?.hostProfile?.email;
+            notifyEventApproval({
+                hostId,
+                hostEmail,
+                eventTitle: ev?.title || 'Event',
+                eventId: id
+            });
+
             setEvents(prev => prev.filter(e => e.id !== id));
             setSelectedEvent(null);
         } catch (err) {
@@ -71,16 +87,31 @@ function EventPending() {
         }
         setActionLoading(true);
         try {
+            const reason = rejectionReason.trim();
+            const ev = events.find(e => e.id === id);
+
             const { error: supaErr } = await supabase
                 .from('events')
                 .update({
                     status: 'rejected',
                     is_approved: false,
-                    rejection_reason: rejectionReason.trim()
+                    rejection_reason: reason
                 })
                 .eq('id', id);
 
             if (supaErr) throw supaErr;
+
+            // Dispatch in-app & email notification
+            const hostId = ev?.organizer_id || ev?.host_id || ev?.user_id;
+            const hostEmail = ev?.email || ev?.organizer_email || ev?.hostProfile?.email;
+            notifyEventRejection({
+                hostId,
+                hostEmail,
+                eventTitle: ev?.title || 'Event',
+                eventId: id,
+                reason
+            });
+
             setEvents(prev => prev.filter(e => e.id !== id));
             setSelectedEvent(null);
             setIsRejecting(false);
